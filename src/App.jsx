@@ -1,18 +1,32 @@
-import { useState, useMemo, useEffect } from "react";
+ import { useState, useMemo, useEffect } from "react";
+import { initializeApp } from "firebase/app";
+import { getFirestore, collection, addDoc, updateDoc, deleteDoc, doc, onSnapshot, query, orderBy } from "firebase/firestore";
+
+const firebaseConfig = {
+  apiKey: "AIzaSyBNUhJDS5omotKq2c9ueb0p6MRUmktSZB8",
+  authDomain: "corporate-gifts-catalog.firebaseapp.com",
+  projectId: "corporate-gifts-catalog",
+  storageBucket: "corporate-gifts-catalog.firebasestorage.app",
+  messagingSenderId: "363640826064",
+  appId: "1:363640826064:web:bcf1ff57345bea316ed6d5"
+};
+
+const app = initializeApp(firebaseConfig);
+const db = getFirestore(app);
 
 const DEFAULT_LEAD_TIMES = [
-  { id: "L1", label: "L1 — Ready Stock", sub: "1–3 days" },
-  { id: "L2", label: "L2 — Local Prod",  sub: "5–7 days" },
-  { id: "L3", label: "L3 — Import",      sub: "2–3 weeks" },
-  { id: "L4", label: "L4 — Custom",      sub: "4–6 weeks" },
+  { id: "L1", label: "Ready Stock", sub: "1–3 days" },
+  { id: "L2", label: "Local Prod", sub: "5–7 days" },
+  { id: "L3", label: "Import", sub: "2–3 weeks" },
+  { id: "L4", label: "Custom", sub: "4–6 weeks" },
 ];
 
-const PRICE_TIERS = [
-  { label: "Below RM5",    min: 0,   max: 5   },
-  { label: "RM5 – RM15",   min: 5,   max: 15  },
-  { label: "RM15 – RM50",  min: 15,  max: 50  },
-  { label: "RM50 – RM150", min: 50,  max: 150 },
-  { label: "Above RM150",  min: 150, max: Infinity },
+const DEFAULT_PRICE_TIERS = [
+  { label: "Below RM5", min: 0, max: 5 },
+  { label: "RM5 – RM15", min: 5, max: 15 },
+  { label: "RM15 – RM50", min: 15, max: 50 },
+  { label: "RM50 – RM150", min: 50, max: 150 },
+  { label: "Above RM150", min: 150, max: Infinity },
 ];
 
 const BRANDING_OPTIONS = ["Silkscreen", "Laser", "Emboss", "Deboss", "Print", "Full Print", "Custom Box", "Heat Transfer"];
@@ -24,82 +38,92 @@ const LEAD_COLORS = {
   L4: { bg: "#fee2e2", text: "#b91c1c", dot: "#dc2626" },
 };
 
-const ADMIN_PASSWORD = "admin123";
-
-const SAMPLE_PRODUCTS = [
-  {
-    id: 1,
-    name: "USB-C Power Bank",
-    category: "Electronic",
-    price: 35,
-    leadTime: "L2",
-    leadLabel: "5–7 days",
-    moq: 50,
-    image: "https://via.placeholder.com/400x300?text=USB+Power+Bank",
-    branding: "Laser, Silkscreen"
-  },
-  {
-    id: 2,
-    name: "Stainless Steel Tumbler",
-    category: "Bottle",
-    price: 28,
-    leadTime: "L1",
-    leadLabel: "1–3 days",
-    moq: 100,
-    image: "https://via.placeholder.com/400x300?text=Tumbler",
-    branding: "Laser, Emboss"
-  },
-  {
-    id: 3,
-    name: "Notebook with Pen",
-    category: "Stationery",
-    price: 12,
-    leadTime: "L2",
-    leadLabel: "5–7 days",
-    moq: 200,
-    image: "https://via.placeholder.com/400x300?text=Notebook",
-    branding: "Print, Silkscreen"
-  }
-];
-
 export default function App() {
-  const [products, setProducts] = useState(() => {
-    const saved = localStorage.getItem('catalogProducts');
-    return saved ? JSON.parse(saved) : SAMPLE_PRODUCTS;
+  const [products, setProducts] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [userMode, setUserMode] = useState("splash"); // "splash", "catalogLogin", "catalogView", "adminLogin", "adminPanel"
+  const [leadTimes, setLeadTimes] = useState(() => {
+    const saved = localStorage.getItem('catalogLeadTimes');
+    return saved ? JSON.parse(saved) : DEFAULT_LEAD_TIMES;
   });
+  const [priceTiers, setPriceTiers] = useState(() => {
+    const saved = localStorage.getItem('catalogPriceTiers');
+    return saved ? JSON.parse(saved) : DEFAULT_PRICE_TIERS;
+  });
+  const [categoryList, setCategoryList] = useState(() => {
+    const saved = localStorage.getItem('catalogCategories');
+    return saved ? JSON.parse(saved) : ["Electronic", "Bottle", "Stationery"];
+  });
+
   const [selectedPrice, setSelectedPrice] = useState(null);
   const [selectedCategory, setSelectedCategory] = useState(null);
   const [selectedLead, setSelectedLead] = useState(null);
   const [search, setSearch] = useState("");
-  const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState(null);
   const [dragActive, setDragActive] = useState(false);
-  const [isAdmin, setIsAdmin] = useState(false);
-  const [adminPassword, setAdminPassword] = useState("");
-  const [showAdminLogin, setShowAdminLogin] = useState(false);
+  const [password, setPassword] = useState("");
+  const [adminPanel, setAdminPanel] = useState(null);
 
   const [formData, setFormData] = useState({
     name: "",
     category: "Electronic",
     price: "",
-    leadTime: "L2",
+    link: "",
+    size: "",
+    leadTime: "L1",
     moq: "",
     image: "",
     branding: [],
+    pricingTiers: [],
   });
 
-  // Auto-save to localStorage
-  useEffect(() => {
-    localStorage.setItem('catalogProducts', JSON.stringify(products));
-  }, [products]);
+  const [newTierMoq, setNewTierMoq] = useState("");
+  const [newTierPrice, setNewTierPrice] = useState("");
 
-  const categories = [...new Set(products.map(p => p.category))].sort();
+  // FIREBASE LISTENER
+  useEffect(() => {
+    const q = query(collection(db, "products"), orderBy("name"));
+    const unsubscribe = onSnapshot(
+      q,
+      (querySnapshot) => {
+        const productsArray = [];
+        querySnapshot.forEach((doc) => {
+          productsArray.push({ firestoreId: doc.id, ...doc.data() });
+        });
+        setProducts(productsArray);
+        setLoading(false);
+        console.log("✓ Synced from Firebase:", productsArray.length, "products");
+      },
+      (error) => {
+        console.error("🔴 Firebase error:", error);
+        setLoading(false);
+      }
+    );
+    return () => unsubscribe();
+  }, []);
+
+  useEffect(() => {
+    localStorage.setItem('catalogLeadTimes', JSON.stringify(leadTimes));
+  }, [leadTimes]);
+
+  useEffect(() => {
+    localStorage.setItem('catalogPriceTiers', JSON.stringify(priceTiers));
+  }, [priceTiers]);
+
+  useEffect(() => {
+    localStorage.setItem('catalogCategories', JSON.stringify(categoryList));
+  }, [categoryList]);
+
+  const categories = categoryList.sort();
 
   const filtered = useMemo(() => {
     return products.filter(p => {
       if (selectedPrice) {
-        const tier = PRICE_TIERS.find(t => t.label === selectedPrice);
-        if (p.price < tier.min || p.price >= tier.max) return false;
+        const tier = priceTiers.find(t => t.label === selectedPrice);
+        if (tier) {
+          const max = tier.max === Infinity ? Infinity : tier.max;
+          if (p.price < tier.min || p.price >= max) return false;
+        }
       }
       if (selectedCategory && p.category !== selectedCategory) return false;
       if (selectedLead && p.leadTime !== selectedLead) return false;
@@ -109,7 +133,7 @@ export default function App() {
       }
       return true;
     });
-  }, [products, selectedPrice, selectedCategory, selectedLead, search]);
+  }, [products, selectedPrice, selectedCategory, selectedLead, search, priceTiers]);
 
   const clearAll = () => {
     setSelectedPrice(null);
@@ -118,83 +142,116 @@ export default function App() {
     setSearch("");
   };
 
-  const handleAdminLogin = () => {
-    if (adminPassword === ADMIN_PASSWORD) {
-      setIsAdmin(true);
-      setShowAdminLogin(false);
-      setAdminPassword("");
-      alert("✓ Admin mode activated");
+  const handleCatalogLogin = () => {
+    if (password === "PANTONE") {
+      setUserMode("catalogView");
+      setPassword("");
     } else {
       alert("❌ Incorrect password");
-      setAdminPassword("");
+      setPassword("");
     }
   };
 
-  const handleAdminLogout = () => {
-    setIsAdmin(false);
-    setShowForm(false);
+  const handleAdminLogin = () => {
+    if (password === "admin123") {
+      setUserMode("adminPanel");
+      setPassword("");
+    } else {
+      alert("❌ Incorrect password");
+      setPassword("");
+    }
+  };
+
+  const handleLogout = () => {
+    setUserMode("splash");
+    setAdminPanel(null);
+    setPassword("");
     setEditingId(null);
   };
 
-  const handleAddOrEditProduct = (e) => {
+  const handleAddOrEditProduct = async (e) => {
     e.preventDefault();
     if (!formData.name || !formData.price || !formData.moq || formData.branding.length === 0) {
-      alert("Please fill in all required fields");
+      alert("Fill all required fields!");
       return;
     }
 
-    if (editingId) {
-      setProducts(products.map(p => 
-        p.id === editingId 
-          ? { ...p, name: formData.name, category: formData.category, price: parseInt(formData.price), leadTime: formData.leadTime, moq: parseInt(formData.moq), image: formData.image, branding: formData.branding.join(", ") }
-          : p
-      ));
-      alert("✓ Product updated");
-    } else {
-      const newProduct = {
-        id: Math.max(...products.map(p => p.id), 0) + 1,
-        name: formData.name,
-        category: formData.category,
-        price: parseInt(formData.price),
-        leadTime: formData.leadTime,
-        leadLabel: DEFAULT_LEAD_TIMES.find(lt => lt.id === formData.leadTime)?.sub,
-        moq: parseInt(formData.moq),
-        image: formData.image,
-        branding: formData.branding.join(", "),
-      };
-      setProducts([...products, newProduct]);
-      alert("✓ Product added");
+    const productData = {
+      name: formData.name,
+      category: formData.category,
+      price: parseInt(formData.price),
+      link: formData.link,
+      size: formData.size,
+      leadTime: formData.leadTime,
+      leadLabel: leadTimes.find(lt => lt.id === formData.leadTime)?.sub,
+      moq: parseInt(formData.moq),
+      image: formData.image,
+      branding: formData.branding.join(", "),
+      pricingTiers: formData.pricingTiers || [],
+    };
+
+    try {
+      if (editingId) {
+        await updateDoc(doc(db, "products", editingId), productData);
+        console.log("✓ Product updated in Firebase");
+        alert("✓ Updated!");
+      } else {
+        await addDoc(collection(db, "products"), productData);
+        console.log("✓ Product added to Firebase");
+        alert("✓ Added!");
+      }
+      resetForm();
+    } catch (error) {
+      console.error("🔴 Error saving product:", error);
+      alert("Error: " + error.message);
     }
-    
-    resetForm();
   };
 
   const resetForm = () => {
-    setFormData({ name: "", category: "Electronic", price: "", leadTime: "L2", moq: "", image: "", branding: [] });
+    setFormData({
+      name: "",
+      category: "Electronic",
+      price: "",
+      link: "",
+      size: "",
+      leadTime: "L1",
+      moq: "",
+      image: "",
+      branding: [],
+      pricingTiers: [],
+    });
     setEditingId(null);
-    setShowForm(false);
+    setNewTierMoq("");
+    setNewTierPrice("");
   };
 
   const startEditProduct = (product) => {
-    if (!isAdmin) return;
     setFormData({
       name: product.name,
       category: product.category,
       price: product.price.toString(),
+      link: product.link || "",
+      size: product.size || "",
       leadTime: product.leadTime,
       moq: product.moq.toString(),
       image: product.image,
       branding: product.branding ? product.branding.split(", ").map(b => b.trim()) : [],
+      pricingTiers: product.pricingTiers || [],
     });
-    setEditingId(product.id);
-    setShowForm(true);
+    setEditingId(product.firestoreId);
+    setAdminPanel("addProduct");
   };
 
-  const deleteProduct = (id) => {
-    if (!isAdmin) return;
-    if (!window.confirm("Delete this product?")) return;
-    setProducts(products.filter(p => p.id !== id));
-    alert("✓ Product deleted");
+  const deleteProduct = async (firestoreId) => {
+    if (!window.confirm("Delete?")) return;
+    try {
+      await deleteDoc(doc(db, "products", firestoreId));
+      console.log("✓ Product deleted from Firebase");
+      alert("✓ Deleted!");
+    } catch (error) {
+      console.error("🔴 Error deleting product:", error);
+      alert("Error: " + error.message);
+    }
   };
 
   const toggleBranding = (brand) => {
@@ -204,6 +261,64 @@ export default function App() {
         ? prev.branding.filter(b => b !== brand)
         : [...prev.branding, brand]
     }));
+  };
+
+  const addPricingTier = () => {
+    if (!newTierMoq || !newTierPrice) {
+      alert("Fill MOQ and Price");
+      return;
+    }
+    const moq = parseInt(newTierMoq);
+    const price = parseFloat(newTierPrice);
+    if (isNaN(moq) || isNaN(price)) {
+      alert("Invalid numbers");
+      return;
+    }
+    setFormData(prev => ({
+      ...prev,
+      pricingTiers: [...prev.pricingTiers, { moq, price }].sort((a, b) => a.moq - b.moq)
+    }));
+    setNewTierMoq("");
+    setNewTierPrice("");
+  };
+
+  const removePricingTier = (index) => {
+    setFormData(prev => ({
+      ...prev,
+      pricingTiers: prev.pricingTiers.filter((_, i) => i !== index)
+    }));
+  };
+
+  const exportToCSV = () => {
+    if (products.length === 0) {
+      alert("No products to export!");
+      return;
+    }
+
+    const headers = ["Name", "Category", "Base Price", "Size", "Lead Time", "MOQ", "Link", "Branding"];
+    const rows = products.map(p => [
+      p.name,
+      p.category,
+      p.price,
+      p.size || "",
+      p.leadLabel || p.leadTime,
+      p.moq,
+      p.link || "",
+      p.branding || ""
+    ]);
+
+    let csv = headers.join(",") + "\n";
+    rows.forEach(row => {
+      csv += row.map(cell => `"${cell}"`).join(",") + "\n";
+    });
+
+    const blob = new Blob([csv], { type: "text/csv" });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `products_${new Date().toISOString().split("T")[0]}.csv`;
+    a.click();
+    window.URL.revokeObjectURL(url);
   };
 
   const handleImageUpload = (file) => {
@@ -217,219 +332,503 @@ export default function App() {
 
   const handleDrag = (e) => {
     e.preventDefault();
-    e.stopPropagation();
     setDragActive(e.type === "dragenter" || e.type === "dragover");
   };
 
   const handleDrop = (e) => {
     e.preventDefault();
-    e.stopPropagation();
     setDragActive(false);
     if (e.dataTransfer.files?.[0]) {
       handleImageUpload(e.dataTransfer.files[0]);
     }
   };
 
-  return (
-    <div style={{ fontFamily: "'Inter', system-ui, sans-serif", background: "#f8f8f6", minHeight: "100vh", padding: "0 0 60px" }}>
-      {showAdminLogin && (
-        <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, background: "rgba(0,0,0,0.5)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000 }}>
-          <div style={{ background: "#fff", borderRadius: 12, padding: 32, maxWidth: 400, width: "90%", boxShadow: "0 10px 40px rgba(0,0,0,0.2)" }}>
-            <h2 style={{ fontSize: 20, fontWeight: 700, color: "#1a1a1a", marginBottom: 4 }}>Admin Login</h2>
-            <p style={{ fontSize: 13, color: "#999", marginBottom: 20 }}>Enter password</p>
-            <input
-              type="password"
-              value={adminPassword}
-              onChange={e => setAdminPassword(e.target.value)}
-              onKeyPress={e => e.key === "Enter" && handleAdminLogin()}
-              placeholder="Password"
-              style={{ width: "100%", boxSizing: "border-box", padding: "11px 14px", fontSize: 14, border: "1.5px solid #ddd", borderRadius: 6, marginBottom: 16, fontFamily: "inherit" }}
-              autoFocus
-            />
-            <div style={{ display: "flex", gap: 8 }}>
-              <button onClick={handleAdminLogin} style={{ flex: 1, padding: "10px 16px", background: "#c8a96e", color: "#fff", border: "none", borderRadius: 6, fontSize: 13, fontWeight: 600, cursor: "pointer" }}>Login</button>
-              <button onClick={() => { setShowAdminLogin(false); setAdminPassword(""); }} style={{ flex: 1, padding: "10px 16px", background: "#ddd", color: "#1a1a1a", border: "none", borderRadius: 6, fontSize: 13, fontWeight: 600, cursor: "pointer" }}>Cancel</button>
-            </div>
-          </div>
-        </div>
-      )}
+  const editPriceTier = (oldLabel) => {
+    const pt = priceTiers.find(p => p.label === oldLabel);
+    const newLabel = prompt("New label:", pt.label);
+    if (newLabel === null) return;
+    const newMin = prompt("New min:", pt.min.toString());
+    if (newMin === null) return;
+    const newMax = prompt("New max (or 'Infinity'):", pt.max === Infinity ? "Infinity" : pt.max.toString());
+    if (newMax === null) return;
+    
+    const min = parseFloat(newMin);
+    const max = newMax === "Infinity" ? Infinity : parseFloat(newMax);
+    
+    if (isNaN(min) || (max !== Infinity && isNaN(max))) {
+      alert("Invalid numbers");
+      return;
+    }
+    
+    setPriceTiers(priceTiers.map(p => p.label === oldLabel ? { label: newLabel, min, max } : p));
+    alert("✓ Updated!");
+  };
 
-      <div style={{ background: isAdmin ? "#8b5a1f" : "#1a1a1a", padding: "28px 32px 24px", borderBottom: "3px solid #c8a96e" }}>
-        <div style={{ maxWidth: 1200, margin: "0 auto" }}>
-          <div style={{ fontSize: 11, letterSpacing: "0.15em", color: "#c8a96e", fontWeight: 600, textTransform: "uppercase", marginBottom: 6 }}>Corporate Gifts Agency {isAdmin && "— ADMIN MODE"}</div>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 16, flexWrap: "wrap" }}>
-            <div>
-              <h1 style={{ margin: 0, fontSize: 26, fontWeight: 700, color: "#ffffff", letterSpacing: "-0.5px" }}>Product Catalog</h1>
-              <p style={{ margin: "6px 0 0", color: "#9a9a9a", fontSize: 13 }}>💾 Auto-saved {isAdmin && "• Admin mode: Full control"}</p>
+  const deletePriceTier = (label) => {
+    if (window.confirm("Delete this tier?")) {
+      setPriceTiers(priceTiers.filter(p => p.label !== label));
+      alert("✓ Deleted!");
+    }
+  };
+
+  const editLeadTime = (id) => {
+    const lt = leadTimes.find(l => l.id === id);
+    const newLabel = prompt("New label:", lt.label);
+    if (newLabel === null) return;
+    const newSub = prompt("New time:", lt.sub);
+    if (newSub === null) return;
+    
+    setLeadTimes(leadTimes.map(l => l.id === id ? { id, label: newLabel, sub: newSub } : l));
+    alert("✓ Updated!");
+  };
+
+  const deleteLeadTime = (id) => {
+    const productsUsing = products.filter(p => p.leadTime === id);
+    if (productsUsing.length > 0) {
+      alert(`Can't delete - ${productsUsing.length} products use this`);
+      return;
+    }
+    if (window.confirm("Delete this lead time?")) {
+      setLeadTimes(leadTimes.filter(lt => lt.id !== id));
+      alert("✓ Deleted!");
+    }
+  };
+
+  const editCategory = (oldName) => {
+    const newName = prompt("New name:", oldName);
+    if (newName === null) return;
+    if (categoryList.includes(newName) && newName !== oldName) {
+      alert("Already exists!");
+      return;
+    }
+    setCategoryList(categoryList.map(c => c === oldName ? newName : c));
+    alert("✓ Updated!");
+  };
+
+  const deleteCategory = (name) => {
+    const productsUsing = products.filter(p => p.category === name);
+    if (productsUsing.length > 0) {
+      alert(`Can't delete - ${productsUsing.length} products use this`);
+      return;
+    }
+    if (window.confirm("Delete this category?")) {
+      setCategoryList(categoryList.filter(c => c !== name));
+      alert("✓ Deleted!");
+    }
+  };
+
+  if (loading) {
+    return <div style={{ textAlign: "center", padding: "60px 20px", fontFamily: "'Inter', system-ui, sans-serif" }}>Loading from Firebase...</div>;
+  }
+
+  // SPLASH SCREEN
+  if (userMode === "splash") {
+    return (
+      <div style={{ fontFamily: "'Inter', system-ui, sans-serif", background: "#f8f8f6", minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", padding: "20px" }}>
+        <div style={{ maxWidth: 500, width: "100%", textAlign: "center" }}>
+          <div style={{ fontSize: 48, marginBottom: 20 }}>🎁</div>
+          <h1 style={{ fontSize: 36, fontWeight: 700, color: "#1a1a1a", marginBottom: 10 }}>Product Catalog</h1>
+          <p style={{ fontSize: 16, color: "#666", marginBottom: 40 }}>Corporate Gifts Agency</p>
+          
+          <button onClick={() => setUserMode("catalogLogin")} style={{ width: "100%", padding: "16px 24px", background: "#c8a96e", color: "#fff", border: "none", borderRadius: 10, fontSize: 16, fontWeight: 700, cursor: "pointer", marginBottom: 12 }}>👁️ View Catalog</button>
+          
+          <button onClick={() => setUserMode("adminLogin")} style={{ width: "100%", padding: "16px 24px", background: "#666", color: "#fff", border: "none", borderRadius: 10, fontSize: 16, fontWeight: 700, cursor: "pointer" }}>🔓 Admin</button>
+        </div>
+      </div>
+    );
+  }
+
+  // CATALOG LOGIN
+  if (userMode === "catalogLogin") {
+    return (
+      <div style={{ fontFamily: "'Inter', system-ui, sans-serif", background: "#f8f8f6", minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", padding: "20px" }}>
+        <div style={{ maxWidth: 400, width: "100%", background: "#fff", padding: 40, borderRadius: 12, boxShadow: "0 10px 40px rgba(0,0,0,0.1)" }}>
+          <h2 style={{ fontSize: 24, fontWeight: 700, color: "#1a1a1a", marginBottom: 30, textAlign: "center" }}>👁️ View Catalog</h2>
+          <input type="password" value={password} onChange={e => setPassword(e.target.value)} onKeyPress={e => e.key === "Enter" && handleCatalogLogin()} placeholder="Enter password" style={{ width: "100%", boxSizing: "border-box", padding: "12px 16px", fontSize: 14, border: "1.5px solid #ddd", borderRadius: 8, marginBottom: 16, fontFamily: "inherit" }} autoFocus />
+          <button onClick={handleCatalogLogin} style={{ width: "100%", padding: "12px 24px", background: "#c8a96e", color: "#fff", border: "none", borderRadius: 8, fontSize: 14, fontWeight: 600, cursor: "pointer", marginBottom: 8 }}>Login</button>
+          <button onClick={() => { setUserMode("splash"); setPassword(""); }} style={{ width: "100%", padding: "12px 24px", background: "#ddd", color: "#1a1a1a", border: "none", borderRadius: 8, fontSize: 14, fontWeight: 600, cursor: "pointer" }}>Back</button>
+        </div>
+      </div>
+    );
+  }
+
+  // ADMIN LOGIN
+  if (userMode === "adminLogin") {
+    return (
+      <div style={{ fontFamily: "'Inter', system-ui, sans-serif", background: "#f8f8f6", minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", padding: "20px" }}>
+        <div style={{ maxWidth: 400, width: "100%", background: "#fff", padding: 40, borderRadius: 12, boxShadow: "0 10px 40px rgba(0,0,0,0.1)" }}>
+          <h2 style={{ fontSize: 24, fontWeight: 700, color: "#1a1a1a", marginBottom: 30, textAlign: "center" }}>🔓 Admin Login</h2>
+          <input type="password" value={password} onChange={e => setPassword(e.target.value)} onKeyPress={e => e.key === "Enter" && handleAdminLogin()} placeholder="Enter admin password" style={{ width: "100%", boxSizing: "border-box", padding: "12px 16px", fontSize: 14, border: "1.5px solid #ddd", borderRadius: 8, marginBottom: 16, fontFamily: "inherit" }} autoFocus />
+          <button onClick={handleAdminLogin} style={{ width: "100%", padding: "12px 24px", background: "#c8a96e", color: "#fff", border: "none", borderRadius: 8, fontSize: 14, fontWeight: 600, cursor: "pointer", marginBottom: 8 }}>Login</button>
+          <button onClick={() => { setUserMode("splash"); setPassword(""); }} style={{ width: "100%", padding: "12px 24px", background: "#ddd", color: "#1a1a1a", border: "none", borderRadius: 8, fontSize: 14, fontWeight: 600, cursor: "pointer" }}>Back</button>
+        </div>
+      </div>
+    );
+  }
+
+  // ADMIN MENU
+  if (userMode === "adminPanel" && !adminPanel) {
+    return (
+      <div style={{ fontFamily: "'Inter', system-ui, sans-serif", background: "#f8f8f6", minHeight: "100vh", padding: "40px 20px" }}>
+        <div style={{ maxWidth: 600, margin: "0 auto" }}>
+          <h1 style={{ fontSize: 36, fontWeight: 700, marginBottom: 40, color: "#1a1a1a", textAlign: "center" }}>⚙️ ADMIN PANEL</h1>
+          <button onClick={handleLogout} style={{ width: "100%", marginBottom: 20, padding: "12px 20px", background: "#666", color: "#fff", border: "none", borderRadius: 8, cursor: "pointer", fontSize: 14, fontWeight: 600 }}>🔒 Logout</button>
+          
+          <button onClick={() => setAdminPanel("leadTimes")} style={{ width: "100%", marginBottom: 16, padding: "20px", background: "#fff", border: "2px solid #c8a96e", borderRadius: 12, cursor: "pointer", fontSize: 18, fontWeight: 700, color: "#1a1a1a" }}>⏱️ EDIT LEAD TIMES</button>
+          
+          <button onClick={() => setAdminPanel("priceTiers")} style={{ width: "100%", marginBottom: 16, padding: "20px", background: "#fff", border: "2px solid #c8a96e", borderRadius: 12, cursor: "pointer", fontSize: 18, fontWeight: 700, color: "#1a1a1a" }}>💰 EDIT PRICE TIERS</button>
+          
+          <button onClick={() => setAdminPanel("categories")} style={{ width: "100%", marginBottom: 16, padding: "20px", background: "#fff", border: "2px solid #c8a96e", borderRadius: 12, cursor: "pointer", fontSize: 18, fontWeight: 700, color: "#1a1a1a" }}>📂 EDIT CATEGORIES</button>
+          
+          <button onClick={() => setAdminPanel("addProduct")} style={{ width: "100%", marginBottom: 16, padding: "20px", background: "#c8a96e", border: "none", borderRadius: 12, cursor: "pointer", fontSize: 18, fontWeight: 700, color: "#fff" }}>✨ ADD PRODUCT</button>
+
+          <button onClick={exportToCSV} style={{ width: "100%", marginBottom: 16, padding: "20px", background: "#fff", border: "2px solid #16a34a", borderRadius: 12, cursor: "pointer", fontSize: 18, fontWeight: 700, color: "#16a34a" }}>💾 EXPORT CSV</button>
+
+          <button onClick={() => setAdminPanel("backup")} style={{ width: "100%", padding: "20px", background: "#fff", border: "2px solid #2563eb", borderRadius: 12, cursor: "pointer", fontSize: 18, fontWeight: 700, color: "#2563eb" }}>📥 BACKUP GUIDE</button>
+        </div>
+      </div>
+    );
+  }
+
+  // BACKUP GUIDE
+  if (userMode === "adminPanel" && adminPanel === "backup") {
+    return (
+      <div style={{ fontFamily: "'Inter', system-ui, sans-serif", background: "#f8f8f6", minHeight: "100vh", padding: "40px 20px" }}>
+        <div style={{ maxWidth: 700, margin: "0 auto" }}>
+          <button onClick={() => setAdminPanel(null)} style={{ marginBottom: 20, padding: "10px 20px", background: "#1a1a1a", color: "#fff", border: "none", borderRadius: 6, cursor: "pointer", fontSize: 14, fontWeight: 600 }}>← Back</button>
+          <div style={{ background: "#fff", padding: 40, borderRadius: 12, border: "2px solid #2563eb" }}>
+            <h1 style={{ fontSize: 28, fontWeight: 700, marginBottom: 30, color: "#1a1a1a" }}>📥 FIREBASE BACKUP GUIDE</h1>
+            
+            <div style={{ marginBottom: 30, padding: 20, background: "#eff6ff", borderRadius: 8, borderLeft: "4px solid #2563eb" }}>
+              <h3 style={{ fontSize: 16, fontWeight: 700, color: "#1a1a1a", marginBottom: 10 }}>Why Backup?</h3>
+              <p style={{ fontSize: 14, color: "#666", margin: 0 }}>Firebase stores all your product data safely, but you should keep backups for extra protection. We recommend exporting data weekly.</p>
             </div>
-            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-              {isAdmin && <button onClick={() => setShowForm(!showForm)} style={{ padding: "10px 20px", background: showForm ? "#555" : "#c8a96e", color: "#fff", border: "none", borderRadius: 6, fontSize: 12, fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap" }}>+ Add Product</button>}
-              <button onClick={isAdmin ? handleAdminLogout : () => setShowAdminLogin(true)} style={{ padding: "10px 16px", background: isAdmin ? "#c8a96e" : "#666", color: "#fff", border: "none", borderRadius: 6, fontSize: 12, fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap" }}>{isAdmin ? "🔒 Logout" : "🔓 Admin"}</button>
+
+            <h2 style={{ fontSize: 18, fontWeight: 700, color: "#1a1a1a", marginBottom: 16 }}>📋 Method 1: CSV Export (EASIEST)</h2>
+            <div style={{ marginBottom: 20, paddingLeft: 20 }}>
+              <p style={{ fontSize: 14, color: "#666", margin: "0 0 8px" }}>1. Go back to Admin Panel</p>
+              <p style={{ fontSize: 14, color: "#666", margin: "0 0 8px" }}>2. Click <strong>"💾 EXPORT CSV"</strong></p>
+              <p style={{ fontSize: 14, color: "#666", margin: "0 0 8px" }}>3. A file downloads automatically</p>
+              <p style={{ fontSize: 14, color: "#666", margin: 0 }}>4. Save it to Google Drive or your computer</p>
+              <p style={{ fontSize: 12, color: "#16a34a", marginTop: 10, fontWeight: 600 }}>✓ Do this weekly for safety!</p>
+            </div>
+
+            <h2 style={{ fontSize: 18, fontWeight: 700, color: "#1a1a1a", marginBottom: 16 }}>🔐 Method 2: Firebase Console (PROFESSIONAL)</h2>
+            <div style={{ marginBottom: 20, paddingLeft: 20 }}>
+              <p style={{ fontSize: 14, color: "#666", margin: "0 0 8px" }}>1. Go to: <strong>https://console.firebase.google.com</strong></p>
+              <p style={{ fontSize: 14, color: "#666", margin: "0 0 8px" }}>2. Select: <strong>"corporate-gifts-catalog"</strong></p>
+              <p style={{ fontSize: 14, color: "#666", margin: "0 0 8px" }}>3. Go to: <strong>Firestore Database</strong></p>
+              <p style={{ fontSize: 14, color: "#666", margin: "0 0 8px" }}>4. Click: <strong>"products" collection</strong></p>
+              <p style={{ fontSize: 14, color: "#666", margin: "0 0 8px" }}>5. Click 3 dots ⋯ → <strong>"Export Collection"</strong></p>
+              <p style={{ fontSize: 14, color: "#666", margin: 0 }}>6. Save to Google Drive</p>
+              <p style={{ fontSize: 12, color: "#2563eb", marginTop: 10, fontWeight: 600 }}>ℹ️ Creates automatic backups you can restore from</p>
+            </div>
+
+            <h2 style={{ fontSize: 18, fontWeight: 700, color: "#1a1a1a", marginBottom: 16 }}>✓ Your Data is SAFE Because:</h2>
+            <div style={{ paddingLeft: 20 }}>
+              <p style={{ fontSize: 14, color: "#666", margin: "0 0 8px" }}>✅ Google Firebase = enterprise-grade security</p>
+              <p style={{ fontSize: 14, color: "#666", margin: "0 0 8px" }}>✅ Automatic daily backups across regions</p>
+              <p style={{ fontSize: 14, color: "#666", margin: "0 0 8px" }}>✅ 99.99% uptime guarantee</p>
+              <p style={{ fontSize: 14, color: "#666", margin: "0 0 8px" }}>✅ Encrypted in transit & at rest</p>
+              <p style={{ fontSize: 14, color: "#666", margin: 0 }}>✅ Only you can access with password protection</p>
+            </div>
+
+            <div style={{ marginTop: 30, padding: 16, background: "#fef3c7", borderRadius: 8, borderLeft: "4px solid #f59e0b" }}>
+              <p style={{ fontSize: 13, color: "#92400e", margin: 0, fontWeight: 600 }}>💡 TIP: Export CSV every Friday, save to Google Drive = disaster recovery ready!</p>
             </div>
           </div>
         </div>
       </div>
+    );
+  }
+
+  // LEAD TIMES PANEL
+  if (userMode === "adminPanel" && adminPanel === "leadTimes") {
+    return (
+      <div style={{ fontFamily: "'Inter', system-ui, sans-serif", background: "#f8f8f6", minHeight: "100vh", padding: "40px 20px" }}>
+        <div style={{ maxWidth: 600, margin: "0 auto" }}>
+          <button onClick={() => setAdminPanel(null)} style={{ marginBottom: 20, padding: "10px 20px", background: "#1a1a1a", color: "#fff", border: "none", borderRadius: 6, cursor: "pointer", fontSize: 14, fontWeight: 600 }}>← Back</button>
+          <div style={{ background: "#fff", padding: 40, borderRadius: 12, border: "2px solid #c8a96e" }}>
+            <h1 style={{ fontSize: 28, fontWeight: 700, marginBottom: 30, color: "#1a1a1a" }}>⏱️ EDIT LEAD TIMES</h1>
+            {leadTimes.map(lt => (
+              <div key={lt.id} style={{ padding: 16, background: "#f5f5f5", borderRadius: 8, marginBottom: 12, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <div>
+                  <div style={{ fontSize: 18, fontWeight: 700, color: "#1a1a1a" }}>{lt.label}</div>
+                  <div style={{ fontSize: 13, color: "#666" }}>{lt.sub}</div>
+                </div>
+                <div style={{ display: "flex", gap: 8 }}>
+                  <button onClick={() => editLeadTime(lt.id)} style={{ padding: "8px 16px", background: "#c8a96e", color: "#fff", border: "none", borderRadius: 6, cursor: "pointer", fontWeight: 600, fontSize: 12 }}>EDIT</button>
+                  <button onClick={() => deleteLeadTime(lt.id)} style={{ padding: "8px 16px", background: "#ff5555", color: "#fff", border: "none", borderRadius: 6, cursor: "pointer", fontWeight: 600, fontSize: 12 }}>DELETE</button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // PRICE TIERS PANEL
+  if (userMode === "adminPanel" && adminPanel === "priceTiers") {
+    return (
+      <div style={{ fontFamily: "'Inter', system-ui, sans-serif", background: "#f8f8f6", minHeight: "100vh", padding: "40px 20px" }}>
+        <div style={{ maxWidth: 600, margin: "0 auto" }}>
+          <button onClick={() => setAdminPanel(null)} style={{ marginBottom: 20, padding: "10px 20px", background: "#1a1a1a", color: "#fff", border: "none", borderRadius: 6, cursor: "pointer", fontSize: 14, fontWeight: 600 }}>← Back</button>
+          <div style={{ background: "#fff", padding: 40, borderRadius: 12, border: "2px solid #c8a96e" }}>
+            <h1 style={{ fontSize: 28, fontWeight: 700, marginBottom: 30, color: "#1a1a1a" }}>💰 EDIT PRICE TIERS</h1>
+            {priceTiers.map(pt => (
+              <div key={pt.label} style={{ padding: 16, background: "#f5f5f5", borderRadius: 8, marginBottom: 12, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <div>
+                  <div style={{ fontSize: 18, fontWeight: 700, color: "#1a1a1a" }}>{pt.label}</div>
+                  <div style={{ fontSize: 13, color: "#666" }}>RM{pt.min} – {pt.max === Infinity ? "∞" : "RM" + pt.max}</div>
+                </div>
+                <div style={{ display: "flex", gap: 8 }}>
+                  <button onClick={() => editPriceTier(pt.label)} style={{ padding: "8px 16px", background: "#c8a96e", color: "#fff", border: "none", borderRadius: 6, cursor: "pointer", fontWeight: 600, fontSize: 12 }}>EDIT</button>
+                  <button onClick={() => deletePriceTier(pt.label)} style={{ padding: "8px 16px", background: "#ff5555", color: "#fff", border: "none", borderRadius: 6, cursor: "pointer", fontWeight: 600, fontSize: 12 }}>DELETE</button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // CATEGORIES PANEL
+  if (userMode === "adminPanel" && adminPanel === "categories") {
+    return (
+      <div style={{ fontFamily: "'Inter', system-ui, sans-serif", background: "#f8f8f6", minHeight: "100vh", padding: "40px 20px" }}>
+        <div style={{ maxWidth: 600, margin: "0 auto" }}>
+          <button onClick={() => setAdminPanel(null)} style={{ marginBottom: 20, padding: "10px 20px", background: "#1a1a1a", color: "#fff", border: "none", borderRadius: 6, cursor: "pointer", fontSize: 14, fontWeight: 600 }}>← Back</button>
+          <div style={{ background: "#fff", padding: 40, borderRadius: 12, border: "2px solid #c8a96e" }}>
+            <h1 style={{ fontSize: 28, fontWeight: 700, marginBottom: 30, color: "#1a1a1a" }}>📂 EDIT CATEGORIES</h1>
+            {categories.map(cat => (
+              <div key={cat} style={{ padding: 16, background: "#f5f5f5", borderRadius: 8, marginBottom: 12, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <div style={{ fontSize: 18, fontWeight: 700, color: "#1a1a1a" }}>{cat}</div>
+                <div style={{ display: "flex", gap: 8 }}>
+                  <button onClick={() => editCategory(cat)} style={{ padding: "8px 16px", background: "#c8a96e", color: "#fff", border: "none", borderRadius: 6, cursor: "pointer", fontWeight: 600, fontSize: 12 }}>EDIT</button>
+                  <button onClick={() => deleteCategory(cat)} style={{ padding: "8px 16px", background: "#ff5555", color: "#fff", border: "none", borderRadius: 6, cursor: "pointer", fontWeight: 600, fontSize: 12 }}>DELETE</button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // ADD PRODUCT PANEL
+  if (userMode === "adminPanel" && adminPanel === "addProduct") {
+    return (
+      <div style={{ fontFamily: "'Inter', system-ui, sans-serif", background: "#f8f8f6", minHeight: "100vh", padding: "40px 20px" }}>
+        <div style={{ maxWidth: 800, margin: "0 auto" }}>
+          <button onClick={() => setAdminPanel(null)} style={{ marginBottom: 20, padding: "10px 20px", background: "#1a1a1a", color: "#fff", border: "none", borderRadius: 6, cursor: "pointer", fontSize: 14, fontWeight: 600 }}>← Back</button>
+          <div style={{ background: "#fff", padding: 40, borderRadius: 12, border: "2px solid #c8a96e" }}>
+            <h1 style={{ fontSize: 28, fontWeight: 700, marginBottom: 30, color: "#1a1a1a" }}>{editingId ? "EDIT PRODUCT" : "ADD PRODUCT"}</h1>
+            <form onSubmit={handleAddOrEditProduct} style={{ display: "grid", gap: 20 }}>
+              <input type="text" value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} placeholder="Product name *" style={{ padding: "12px 16px", fontSize: 14, border: "1.5px solid #ddd", borderRadius: 8, fontFamily: "inherit" }} />
+              
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+                <input type="text" value={formData.category} onChange={e => setFormData({...formData, category: e.target.value})} placeholder="Category *" style={{ padding: "12px 16px", fontSize: 14, border: "1.5px solid #ddd", borderRadius: 8, fontFamily: "inherit" }} />
+                <input type="number" value={formData.price} onChange={e => setFormData({...formData, price: e.target.value})} placeholder="Base Price (RM) *" style={{ padding: "12px 16px", fontSize: 14, border: "1.5px solid #ddd", borderRadius: 8, fontFamily: "inherit" }} />
+              </div>
+
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+                <input type="text" value={formData.link} onChange={e => setFormData({...formData, link: e.target.value})} placeholder="Link (optional)" style={{ padding: "12px 16px", fontSize: 14, border: "1.5px solid #ddd", borderRadius: 8, fontFamily: "inherit" }} />
+                <input type="text" value={formData.size} onChange={e => setFormData({...formData, size: e.target.value})} placeholder="Size (optional)" style={{ padding: "12px 16px", fontSize: 14, border: "1.5px solid #ddd", borderRadius: 8, fontFamily: "inherit" }} />
+              </div>
+
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+                <select value={formData.leadTime} onChange={e => setFormData({...formData, leadTime: e.target.value})} style={{ padding: "12px 16px", fontSize: 14, border: "1.5px solid #ddd", borderRadius: 8, fontFamily: "inherit" }}>
+                  {leadTimes.map(lt => <option key={lt.id} value={lt.id}>{lt.label}</option>)}
+                </select>
+                <input type="number" value={formData.moq} onChange={e => setFormData({...formData, moq: e.target.value})} placeholder="MOQ *" style={{ padding: "12px 16px", fontSize: 14, border: "1.5px solid #ddd", borderRadius: 8, fontFamily: "inherit" }} />
+              </div>
+
+              <div>
+                <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: "#666", marginBottom: 8 }}>Image</label>
+                <div onDragEnter={handleDrag} onDragLeave={handleDrag} onDragOver={handleDrag} onDrop={handleDrop} style={{ border: dragActive ? "2px solid #c8a96e" : "2px dashed #ddd", borderRadius: 8, padding: "30px", textAlign: "center", background: dragActive ? "#f9f7f3" : "#fafafa", cursor: "pointer" }}>
+                  <input type="file" accept="image/*" onChange={e => handleImageUpload(e.target.files?.[0])} style={{ display: "none" }} id="imageUploadInput" />
+                  <label htmlFor="imageUploadInput" style={{ cursor: "pointer", fontSize: 14 }}>Drag or click to upload</label>
+                </div>
+              </div>
+
+              <div>
+                <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: "#666", marginBottom: 10 }}>Branding *</label>
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+                  {BRANDING_OPTIONS.map(brand => (
+                    <button key={brand} type="button" onClick={() => toggleBranding(brand)} style={{ padding: "8px 14px", borderRadius: 20, fontSize: 12, fontWeight: 500, cursor: "pointer", border: formData.branding.includes(brand) ? "1.5px solid #c8a96e" : "1px solid #ddd", background: formData.branding.includes(brand) ? "#c8a96e" : "#fff", color: formData.branding.includes(brand) ? "#fff" : "#444" }}>{brand}</button>
+                  ))}
+                </div>
+              </div>
+
+              <div style={{ padding: 20, background: "#f9f7f3", borderRadius: 8 }}>
+                <h3 style={{ fontSize: 14, fontWeight: 700, color: "#1a1a1a", marginBottom: 16 }}>💰 Pricing Tiers (Optional)</h3>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 12 }}>
+                  <input type="number" value={newTierMoq} onChange={e => setNewTierMoq(e.target.value)} placeholder="MOQ" style={{ padding: "10px", fontSize: 13, border: "1px solid #ddd", borderRadius: 6, fontFamily: "inherit" }} />
+                  <input type="number" value={newTierPrice} onChange={e => setNewTierPrice(e.target.value)} placeholder="Price (RM)" style={{ padding: "10px", fontSize: 13, border: "1px solid #ddd", borderRadius: 6, fontFamily: "inherit" }} />
+                </div>
+                <button type="button" onClick={addPricingTier} style={{ width: "100%", padding: "10px", background: "#c8a96e", color: "#fff", border: "none", borderRadius: 6, fontSize: 13, fontWeight: 600, cursor: "pointer", marginBottom: 16 }}>+ Add Tier</button>
+
+                {formData.pricingTiers.length > 0 && (
+                  <div style={{ background: "#fff", borderRadius: 6, overflow: "hidden" }}>
+                    <table style={{ width: "100%", borderCollapse: "collapse" }}>
+                      <thead>
+                        <tr style={{ background: "#f0f0f0" }}>
+                          <th style={{ padding: "10px", textAlign: "left", fontSize: 12, fontWeight: 600, borderBottom: "1px solid #ddd" }}>MOQ</th>
+                          <th style={{ padding: "10px", textAlign: "left", fontSize: 12, fontWeight: 600, borderBottom: "1px solid #ddd" }}>Price (RM)</th>
+                          <th style={{ padding: "10px", textAlign: "left", fontSize: 12, fontWeight: 600, borderBottom: "1px solid #ddd" }}>Action</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {formData.pricingTiers.map((tier, idx) => (
+                          <tr key={idx} style={{ borderBottom: "1px solid #eee" }}>
+                            <td style={{ padding: "10px", fontSize: 13 }}>{tier.moq}</td>
+                            <td style={{ padding: "10px", fontSize: 13 }}>{tier.price}</td>
+                            <td style={{ padding: "10px" }}>
+                              <button type="button" onClick={() => removePricingTier(idx)} style={{ padding: "4px 8px", background: "#ff5555", color: "#fff", border: "none", borderRadius: 4, fontSize: 11, cursor: "pointer" }}>Remove</button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+
+              <div style={{ display: "flex", gap: 12 }}>
+                <button type="submit" style={{ flex: 1, padding: "14px 24px", background: "#c8a96e", color: "#fff", border: "none", borderRadius: 8, fontSize: 14, fontWeight: 600, cursor: "pointer" }}>{editingId ? "UPDATE" : "ADD"}</button>
+                {editingId && <button type="button" onClick={() => { setEditingId(null); resetForm(); }} style={{ flex: 1, padding: "14px 24px", background: "#888", color: "#fff", border: "none", borderRadius: 8, fontSize: 14, fontWeight: 600, cursor: "pointer" }}>CANCEL</button>}
+              </div>
+            </form>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // CATALOG VIEW
+  return (
+    <div style={{ fontFamily: "'Inter', system-ui, sans-serif", background: "#f8f8f6", minHeight: "100vh", padding: "0 0 60px" }}>
+      <div style={{ background: "#1a1a1a", padding: "24px 32px", borderBottom: "3px solid #c8a96e" }}>
+        <div style={{ maxWidth: 1200, margin: "0 auto", display: "flex", justifyContent: "space-between", alignItems: "center", gap: 16 }}>
+          <div>
+            <h1 style={{ margin: 0, fontSize: 28, fontWeight: 700, color: "#fff" }}>Product Catalog</h1>
+            <p style={{ margin: "6px 0 0", color: "#aaa", fontSize: 12 }}>🔒 Secure Access</p>
+          </div>
+          <button onClick={handleLogout} style={{ padding: "10px 20px", background: "#666", color: "#fff", border: "none", borderRadius: 6, fontSize: 12, fontWeight: 600, cursor: "pointer" }}>🔒 Logout</button>
+        </div>
+      </div>
 
       <div style={{ maxWidth: 1200, margin: "0 auto", padding: "0 24px" }}>
-        {showForm && isAdmin ? (
-          <div style={{ paddingTop: 32, paddingBottom: 40 }}>
-            <div style={{ background: "#fff", borderRadius: 10, padding: 32, border: "1.5px solid #e8e8e8" }}>
-              <h2 style={{ fontSize: 20, fontWeight: 700, color: "#1a1a1a", marginBottom: 24 }}>{editingId ? "Edit Product" : "Add New Product"}</h2>
-              <form onSubmit={handleAddOrEditProduct} style={{ display: "grid", gap: 20 }}>
-                <div>
-                  <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: "#666", marginBottom: 6, textTransform: "uppercase" }}>Product Name *</label>
-                  <input type="text" value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} placeholder="e.g., USB Power Bank" style={{ width: "100%", boxSizing: "border-box", padding: "10px 14px", fontSize: 14, border: "1.5px solid #ddd", borderRadius: 6, background: "#fff", outline: "none", color: "#1a1a1a", fontFamily: "inherit" }} />
-                </div>
+        <div style={{ paddingTop: 24, paddingBottom: 4 }}>
+          <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search products..." style={{ width: "100%", boxSizing: "border-box", padding: "11px 16px", fontSize: 14, border: "1.5px solid #ddd", borderRadius: 8, background: "#fff" }} />
+        </div>
 
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
-                  <div>
-                    <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: "#666", marginBottom: 6, textTransform: "uppercase" }}>Category *</label>
-                    <input type="text" value={formData.category} onChange={e => setFormData({...formData, category: e.target.value})} placeholder="e.g., Electronic" style={{ width: "100%", boxSizing: "border-box", padding: "10px 14px", fontSize: 14, border: "1.5px solid #ddd", borderRadius: 6, background: "#fff", outline: "none", color: "#1a1a1a", fontFamily: "inherit" }} />
-                  </div>
-                  <div>
-                    <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: "#c8a96e", marginBottom: 6, textTransform: "uppercase", fontStyle: "italic" }}>Price (RM) * (Admin Only)</label>
-                    <input type="number" value={formData.price} onChange={e => setFormData({...formData, price: e.target.value})} placeholder="0" style={{ width: "100%", boxSizing: "border-box", padding: "10px 14px", fontSize: 14, border: "2px solid #c8a96e", borderRadius: 6, background: "#fffbf7", outline: "none", color: "#1a1a1a", fontFamily: "inherit" }} />
-                  </div>
-                </div>
-
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
-                  <div>
-                    <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: "#c8a96e", marginBottom: 6, textTransform: "uppercase", fontStyle: "italic" }}>Lead Time * (Admin Only)</label>
-                    <select value={formData.leadTime} onChange={e => setFormData({...formData, leadTime: e.target.value})} style={{ width: "100%", boxSizing: "border-box", padding: "10px 14px", fontSize: 14, border: "2px solid #c8a96e", borderRadius: 6, background: "#fffbf7", outline: "none", color: "#1a1a1a", fontFamily: "inherit" }}>
-                      {DEFAULT_LEAD_TIMES.map(lt => <option key={lt.id} value={lt.id}>{lt.label} • {lt.sub}</option>)}
-                    </select>
-                  </div>
-                  <div>
-                    <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: "#666", marginBottom: 6, textTransform: "uppercase" }}>MOQ (Pieces) *</label>
-                    <input type="number" value={formData.moq} onChange={e => setFormData({...formData, moq: e.target.value})} placeholder="0" style={{ width: "100%", boxSizing: "border-box", padding: "10px 14px", fontSize: 14, border: "1.5px solid #ddd", borderRadius: 6, background: "#fff", outline: "none", color: "#1a1a1a", fontFamily: "inherit" }} />
-                  </div>
-                </div>
-
-                <div>
-                  <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: "#666", marginBottom: 10, textTransform: "uppercase" }}>Product Image</label>
-                  <div onDragEnter={handleDrag} onDragLeave={handleDrag} onDragOver={handleDrag} onDrop={handleDrop} style={{ border: dragActive ? "2px solid #c8a96e" : "2px dashed #ddd", borderRadius: 8, padding: "32px", textAlign: "center", background: dragActive ? "#f9f7f3" : "#fafafa", cursor: "pointer" }}>
-                    <input type="file" accept="image/*" onChange={e => handleImageUpload(e.target.files?.[0])} style={{ display: "none" }} id="imageUploadInput" />
-                    <label htmlFor="imageUploadInput" style={{ cursor: "pointer" }}>
-                      <div style={{ fontSize: 32, marginBottom: 8 }}>📁</div>
-                      <div style={{ fontSize: 14, fontWeight: 600, color: "#1a1a1a" }}>Drag & drop image or click</div>
-                    </label>
-                  </div>
-                </div>
-
-                {formData.image && <div><div style={{ width: 120, height: 120, borderRadius: 8, overflow: "hidden", background: "#f5f5f5" }}><img src={formData.image} alt="preview" style={{ width: "100%", height: "100%", objectFit: "cover" }} /></div></div>}
-
-                <div>
-                  <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: "#666", marginBottom: 10, textTransform: "uppercase" }}>Branding Options * (Select at least one)</label>
-                  <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-                    {BRANDING_OPTIONS.map(brand => (
-                      <button key={brand} type="button" onClick={() => toggleBranding(brand)} style={{ padding: "8px 14px", borderRadius: 20, fontSize: 13, fontWeight: 500, cursor: "pointer", border: formData.branding.includes(brand) ? "1.5px solid #c8a96e" : "1.5px solid #ddd", background: formData.branding.includes(brand) ? "#c8a96e" : "#fff", color: formData.branding.includes(brand) ? "#fff" : "#444", transition: "all 0.15s", fontFamily: "inherit" }}>{brand}</button>
-                    ))}
-                  </div>
-                </div>
-
-                <div style={{ display: "flex", gap: 8 }}>
-                  <button type="submit" style={{ flex: 1, padding: "12px 24px", background: "#c8a96e", color: "#fff", border: "none", borderRadius: 6, fontSize: 14, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>{editingId ? "Update Product" : "Add Product"}</button>
-                  {editingId && <button type="button" onClick={resetForm} style={{ padding: "12px 24px", background: "#888", color: "#fff", border: "none", borderRadius: 6, fontSize: 14, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>Cancel</button>}
-                </div>
-              </form>
+        <div style={{ display: "flex", gap: 32, marginTop: 20, flexWrap: "wrap" }}>
+          <div>
+            <div style={{ fontSize: 11, fontWeight: 700, color: "#888", textTransform: "uppercase", marginBottom: 10 }}>Category</div>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+              {categories.map(cat => (
+                <button key={cat} onClick={() => setSelectedCategory(selectedCategory === cat ? null : cat)} style={{ padding: "6px 13px", borderRadius: 20, fontSize: 12, fontWeight: 500, cursor: "pointer", border: selectedCategory === cat ? "1.5px solid #1a1a1a" : "1.5px solid #ddd", background: selectedCategory === cat ? "#1a1a1a" : "#fff", color: selectedCategory === cat ? "#fff" : "#444" }}>{cat}</button>
+              ))}
             </div>
           </div>
+
+          <div>
+            <div style={{ fontSize: 11, fontWeight: 700, color: "#888", textTransform: "uppercase", marginBottom: 10 }}>Price</div>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+              {priceTiers.map(tier => (
+                <button key={tier.label} onClick={() => setSelectedPrice(selectedPrice === tier.label ? null : tier.label)} style={{ padding: "6px 13px", borderRadius: 20, fontSize: 12, fontWeight: 500, cursor: "pointer", border: selectedPrice === tier.label ? "1.5px solid #c8a96e" : "1.5px solid #ddd", background: selectedPrice === tier.label ? "#c8a96e" : "#fff", color: selectedPrice === tier.label ? "#fff" : "#444" }}>{tier.label}</button>
+              ))}
+            </div>
+          </div>
+
+          <div>
+            <div style={{ fontSize: 11, fontWeight: 700, color: "#888", textTransform: "uppercase", marginBottom: 10 }}>Lead Time</div>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+              {leadTimes.map(lt => {
+                const c = LEAD_COLORS[lt.id] || { bg: "#f0f0f0", text: "#666", dot: "#999" };
+                const active = selectedLead === lt.id;
+                return (
+                  <button key={lt.id} onClick={() => setSelectedLead(selectedLead === lt.id ? null : lt.id)} style={{ padding: "6px 13px", borderRadius: 20, fontSize: 12, fontWeight: 500, cursor: "pointer", border: active ? `1.5px solid ${c.dot}` : "1.5px solid #ddd", background: active ? c.bg : "#fff", color: active ? c.text : "#444" }}>{lt.sub}</button>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+
+        <div style={{ marginTop: 20, display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap" }}>
+          <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+            {selectedCategory && <span onClick={() => setSelectedCategory(null)} style={{ display: "inline-flex", alignItems: "center", gap: 5, background: "#1a1a1a", color: "#fff", borderRadius: 20, padding: "4px 10px", fontSize: 12, cursor: "pointer" }}>{selectedCategory} ×</span>}
+            {selectedPrice && <span onClick={() => setSelectedPrice(null)} style={{ display: "inline-flex", alignItems: "center", gap: 5, background: "#1a1a1a", color: "#fff", borderRadius: 20, padding: "4px 10px", fontSize: 12, cursor: "pointer" }}>{selectedPrice} ×</span>}
+            {selectedLead && <span onClick={() => setSelectedLead(null)} style={{ display: "inline-flex", alignItems: "center", gap: 5, background: "#1a1a1a", color: "#fff", borderRadius: 20, padding: "4px 10px", fontSize: 12, cursor: "pointer" }}>{leadTimes.find(lt => lt.id === selectedLead)?.sub} ×</span>}
+            {(selectedCategory || selectedPrice || selectedLead) && <span onClick={clearAll} style={{ fontSize: 12, color: "#c8a96e", cursor: "pointer", fontWeight: 600 }}>Clear</span>}
+          </div>
+          <div style={{ fontSize: 13, color: "#888" }}><strong>{filtered.length}</strong> products</div>
+        </div>
+
+        <div style={{ height: 1, background: "#e5e5e5", margin: "16px 0 24px" }} />
+
+        {filtered.length === 0 ? (
+          <div style={{ textAlign: "center", padding: "60px 20px", color: "#aaa" }}>
+            <div style={{ fontSize: 32, marginBottom: 12 }}>🔍</div>
+            <div>No products found</div>
+          </div>
         ) : (
-          <>
-            <div style={{ paddingTop: 28, paddingBottom: 4 }}>
-              <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search by product name or category..." style={{ width: "100%", boxSizing: "border-box", padding: "11px 16px", fontSize: 14, border: "1.5px solid #ddd", borderRadius: 8, background: "#fff", outline: "none", color: "#1a1a1a", boxShadow: "0 1px 3px rgba(0,0,0,0.05)" }} />
-            </div>
-
-            <div style={{ display: "flex", gap: 32, marginTop: 24, flexWrap: "wrap" }}>
-              <div style={{ flex: "1 1 200px" }}>
-                <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.1em", color: "#888", textTransform: "uppercase", marginBottom: 10 }}>Category</div>
-                <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-                  {categories.map(cat => (
-                    <button key={cat} onClick={() => setSelectedCategory(selectedCategory === cat ? null : cat)} style={{ padding: "6px 13px", borderRadius: 20, fontSize: 12.5, fontWeight: 500, cursor: "pointer", border: selectedCategory === cat ? "1.5px solid #1a1a1a" : "1.5px solid #ddd", background: selectedCategory === cat ? "#1a1a1a" : "#fff", color: selectedCategory === cat ? "#fff" : "#444", transition: "all 0.15s" }}>{cat}</button>
-                  ))}
-                </div>
-              </div>
-
-              <div style={{ flex: "1 1 200px" }}>
-                <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.1em", color: "#888", textTransform: "uppercase", marginBottom: 10 }}>Price per Unit</div>
-                <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-                  {PRICE_TIERS.map(tier => (
-                    <button key={tier.label} onClick={() => setSelectedPrice(selectedPrice === tier.label ? null : tier.label)} style={{ padding: "6px 13px", borderRadius: 20, fontSize: 12.5, fontWeight: 500, cursor: "pointer", border: selectedPrice === tier.label ? "1.5px solid #c8a96e" : "1.5px solid #ddd", background: selectedPrice === tier.label ? "#c8a96e" : "#fff", color: selectedPrice === tier.label ? "#fff" : "#444", transition: "all 0.15s" }}>{tier.label}</button>
-                  ))}
-                </div>
-              </div>
-
-              <div style={{ flex: "1 1 200px" }}>
-                <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.1em", color: "#888", textTransform: "uppercase", marginBottom: 10 }}>Lead Time</div>
-                <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-                  {DEFAULT_LEAD_TIMES.map(lt => {
-                    const c = LEAD_COLORS[lt.id];
-                    const active = selectedLead === lt.id;
-                    return (
-                      <button key={lt.id} onClick={() => setSelectedLead(selectedLead === lt.id ? null : lt.id)} style={{ padding: "6px 13px", borderRadius: 20, fontSize: 12.5, fontWeight: 500, cursor: "pointer", border: active ? `1.5px solid ${c.dot}` : "1.5px solid #ddd", background: active ? c.bg : "#fff", color: active ? c.text : "#444", transition: "all 0.15s" }}>{lt.id} · {lt.sub}</button>
-                    );
-                  })}
-                </div>
-              </div>
-            </div>
-
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: 24, flexWrap: "wrap", gap: 8 }}>
-              <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
-                {selectedCategory && <span onClick={() => setSelectedCategory(null)} style={{ display: "inline-flex", alignItems: "center", gap: 5, background: "#1a1a1a", color: "#fff", borderRadius: 20, padding: "4px 11px 4px 13px", fontSize: 12, fontWeight: 500, cursor: "pointer" }}>{selectedCategory} <span style={{ fontSize: 14, opacity: 0.7 }}>×</span></span>}
-                {selectedPrice && <span onClick={() => setSelectedPrice(null)} style={{ display: "inline-flex", alignItems: "center", gap: 5, background: "#1a1a1a", color: "#fff", borderRadius: 20, padding: "4px 11px 4px 13px", fontSize: 12, fontWeight: 500, cursor: "pointer" }}>{selectedPrice} <span style={{ fontSize: 14, opacity: 0.7 }}>×</span></span>}
-                {selectedLead && <span onClick={() => setSelectedLead(null)} style={{ display: "inline-flex", alignItems: "center", gap: 5, background: "#1a1a1a", color: "#fff", borderRadius: 20, padding: "4px 11px 4px 13px", fontSize: 12, fontWeight: 500, cursor: "pointer" }}>{selectedLead} <span style={{ fontSize: 14, opacity: 0.7 }}>×</span></span>}
-                {(selectedCategory || selectedPrice || selectedLead) && <span onClick={clearAll} style={{ fontSize: 12, color: "#c8a96e", cursor: "pointer", fontWeight: 600 }}>Clear all</span>}
-              </div>
-              <div style={{ fontSize: 13, color: "#888" }}><span style={{ fontWeight: 700, color: "#1a1a1a" }}>{filtered.length}</span> product{filtered.length !== 1 ? "s" : ""}</div>
-            </div>
-
-            <div style={{ height: 1, background: "#e5e5e5", margin: "16px 0 24px" }} />
-
-            {filtered.length === 0 ? (
-              <div style={{ textAlign: "center", padding: "60px 0", color: "#aaa" }}>
-                <div style={{ fontSize: 32, marginBottom: 12 }}>🔍</div>
-                <div style={{ fontSize: 15, fontWeight: 600, color: "#555" }}>No products match your filters</div>
-              </div>
-            ) : (
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))", gap: 16, marginBottom: 40 }}>
-                {filtered.map(p => {
-                  const lc = LEAD_COLORS[p.leadTime];
-                  return (
-                    <div key={p.id} style={{ background: "#fff", borderRadius: 10, padding: "18px 20px", border: "1.5px solid #e8e8e8", boxShadow: "0 1px 4px rgba(0,0,0,0.04)", overflow: "hidden" }}>
-                      {p.image ? (
-                        <div style={{ width: "calc(100% + 40px)", height: 180, marginLeft: -20, marginTop: -18, marginBottom: 14, background: "#f5f5f5", overflow: "hidden" }}>
-                          <img src={p.image} alt={p.name} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-                        </div>
-                      ) : (
-                        <div style={{ width: "calc(100% + 40px)", height: 180, marginLeft: -20, marginTop: -18, marginBottom: 14, background: "#f5f5f5", display: "flex", alignItems: "center", justifyContent: "center", color: "#ddd", fontSize: 40 }}>📦</div>
-                      )}
-                      <div style={{ fontSize: 10.5, fontWeight: 700, color: "#aaa", textTransform: "uppercase", marginBottom: 5 }}>{p.category}</div>
-                      <div style={{ fontSize: 15, fontWeight: 700, color: "#1a1a1a", marginBottom: 14, lineHeight: 1.3 }}>{p.name}</div>
-                      <div style={{ display: "flex", alignItems: "baseline", gap: 4, marginBottom: 12 }}>
-                        <span style={{ fontSize: 22, fontWeight: 800, color: "#1a1a1a" }}>RM{p.price}</span>
-                        <span style={{ fontSize: 12, color: "#aaa" }}>/ unit</span>
-                      </div>
-                      <div style={{ display: "inline-flex", alignItems: "center", gap: 5, background: lc.bg, color: lc.text, borderRadius: 6, padding: "4px 9px", fontSize: 11.5, fontWeight: 600, marginBottom: 12 }}>
-                        <span style={{ width: 6, height: 6, borderRadius: "50%", background: lc.dot, display: "inline-block" }} />
-                        {p.leadTime} · {p.leadLabel}
-                      </div>
-                      <div style={{ height: 1, background: "#f0f0f0", margin: "2px 0 12px" }} />
-                      <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, color: "#777", marginBottom: 12 }}>
-                        <span>MOQ: <strong>{p.moq} pcs</strong></span>
-                        <span style={{ textAlign: "right", maxWidth: "50%", fontSize: 11 }}>{p.branding}</span>
-                      </div>
-                      {isAdmin && (
-                        <div style={{ display: "flex", gap: 6 }}>
-                          <button onClick={() => startEditProduct(p)} style={{ flex: 1, padding: "6px 8px", background: "#f0f0f0", color: "#1a1a1a", border: "none", borderRadius: 4, fontSize: 12, fontWeight: 600, cursor: "pointer" }}>✏️ Edit</button>
-                          <button onClick={() => deleteProduct(p.id)} style={{ flex: 1, padding: "6px 8px", background: "#ff5555", color: "#fff", border: "none", borderRadius: 4, fontSize: 12, fontWeight: 600, cursor: "pointer" }}>🗑️ Delete</button>
-                        </div>
-                      )}
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: 16, marginBottom: 40 }}>
+            {filtered.map(p => {
+              const lc = LEAD_COLORS[p.leadTime] || { bg: "#f0f0f0", text: "#666", dot: "#999" };
+              return (
+                <div key={p.firestoreId} style={{ background: "#fff", borderRadius: 10, padding: "18px 20px", border: "1.5px solid #e8e8e8", overflow: "hidden" }}>
+                  {p.image ? (
+                    <div style={{ width: "calc(100% + 40px)", height: 180, marginLeft: -20, marginTop: -18, marginBottom: 14, background: "#f5f5f5", overflow: "hidden" }}>
+                      <img src={p.image} alt={p.name} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
                     </div>
-                  );
-                })}
-              </div>
-            )}
-          </>
+                  ) : (
+                    <div style={{ width: "calc(100% + 40px)", height: 180, marginLeft: -20, marginTop: -18, marginBottom: 14, background: "#f5f5f5", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 40 }}>📦</div>
+                  )}
+                  <div style={{ fontSize: 10, fontWeight: 700, color: "#aaa", textTransform: "uppercase", marginBottom: 6 }}>{p.category}</div>
+                  <div style={{ fontSize: 15, fontWeight: 700, color: "#1a1a1a", marginBottom: 4 }}>{p.name}</div>
+                  {p.size && <div style={{ fontSize: 12, color: "#666", marginBottom: 10 }}>Size: {p.size}</div>}
+                  <div style={{ display: "flex", alignItems: "baseline", gap: 4, marginBottom: 12 }}>
+                    <span style={{ fontSize: 22, fontWeight: 800, color: "#1a1a1a" }}>RM{p.price}</span>
+                    <span style={{ fontSize: 12, color: "#aaa" }}>/ unit</span>
+                  </div>
+                  <div style={{ display: "inline-flex", alignItems: "center", gap: 5, background: lc.bg, color: lc.text, borderRadius: 6, padding: "4px 9px", fontSize: 11, fontWeight: 600, marginBottom: 12 }}>
+                    <span style={{ width: 6, height: 6, borderRadius: "50%", background: lc.dot }} />
+                    {p.leadLabel}
+                  </div>
+                  
+                  {p.pricingTiers && p.pricingTiers.length > 0 && (
+                    <div style={{ marginBottom: 12, padding: 10, background: "#f9f7f3", borderRadius: 6 }}>
+                      <div style={{ fontSize: 11, fontWeight: 700, color: "#1a1a1a", marginBottom: 8 }}>💰 Tiered Pricing:</div>
+                      <table style={{ width: "100%", fontSize: 11 }}>
+                        <tbody>
+                          {p.pricingTiers.map((tier, idx) => (
+                            <tr key={idx}>
+                              <td style={{ padding: "3px 0", color: "#666" }}>MOQ {tier.moq}:</td>
+                              <td style={{ padding: "3px 0", textAlign: "right", fontWeight: 600, color: "#1a1a1a" }}>RM{tier.price}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+
+                  <div style={{ height: 1, background: "#f0f0f0", margin: "8px 0" }} />
+                  <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, color: "#777", marginTop: 10, marginBottom: 12 }}>
+                    <span>MOQ: <strong>{p.moq}</strong></span>
+                    <span style={{ fontSize: 11 }}>{p.branding}</span>
+                  </div>
+                  
+                  {p.link && (
+                    <a href={p.link} target="_blank" rel="noopener noreferrer" style={{ display: "block", padding: "8px 12px", background: "#c8a96e", color: "#fff", border: "none", borderRadius: 4, fontSize: 12, fontWeight: 600, cursor: "pointer", textAlign: "center", textDecoration: "none", marginBottom: 6 }}>View Details →</a>
+                  )}
+                </div>
+              );
+            })}
+          </div>
         )}
       </div>
     </div>
