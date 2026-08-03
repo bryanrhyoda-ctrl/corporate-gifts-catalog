@@ -63,6 +63,7 @@ export default function App() {
   const [dragActive, setDragActive] = useState(false);
   const [password, setPassword] = useState("");
   const [adminPanel, setAdminPanel] = useState(null);
+  const [manageProductSearch, setManageProductSearch] = useState("");
 
   const [formData, setFormData] = useState({
     name: "",
@@ -134,6 +135,12 @@ export default function App() {
       return true;
     });
   }, [products, selectedPrice, selectedCategory, selectedLead, search, priceTiers]);
+
+  const filteredManageProducts = useMemo(() => {
+    if (!manageProductSearch.trim()) return products;
+    const q = manageProductSearch.toLowerCase();
+    return products.filter(p => p.name.toLowerCase().includes(q));
+  }, [products, manageProductSearch]);
 
   const clearAll = () => {
     setSelectedPrice(null);
@@ -243,7 +250,7 @@ export default function App() {
   };
 
   const deleteProduct = async (firestoreId) => {
-    if (!window.confirm("Delete?")) return;
+    if (!window.confirm("Delete this product?")) return;
     try {
       await deleteDoc(doc(db, "products", firestoreId));
       console.log("✓ Product deleted from Firebase");
@@ -496,17 +503,70 @@ export default function App() {
           <h1 style={{ fontSize: 36, fontWeight: 700, marginBottom: 40, color: "#1a1a1a", textAlign: "center" }}>⚙️ ADMIN PANEL</h1>
           <button onClick={handleLogout} style={{ width: "100%", marginBottom: 20, padding: "12px 20px", background: "#666", color: "#fff", border: "none", borderRadius: 8, cursor: "pointer", fontSize: 14, fontWeight: 600 }}>🔒 Logout</button>
           
+          <button onClick={() => setAdminPanel("manageProducts")} style={{ width: "100%", marginBottom: 16, padding: "20px", background: "#fff", border: "2px solid #c8a96e", borderRadius: 12, cursor: "pointer", fontSize: 18, fontWeight: 700, color: "#1a1a1a" }}>📦 MANAGE PRODUCTS</button>
+
+          <button onClick={() => setAdminPanel("addProduct")} style={{ width: "100%", marginBottom: 16, padding: "20px", background: "#c8a96e", border: "none", borderRadius: 12, cursor: "pointer", fontSize: 18, fontWeight: 700, color: "#fff" }}>✨ ADD PRODUCT</button>
+          
           <button onClick={() => setAdminPanel("leadTimes")} style={{ width: "100%", marginBottom: 16, padding: "20px", background: "#fff", border: "2px solid #c8a96e", borderRadius: 12, cursor: "pointer", fontSize: 18, fontWeight: 700, color: "#1a1a1a" }}>⏱️ EDIT LEAD TIMES</button>
           
           <button onClick={() => setAdminPanel("priceTiers")} style={{ width: "100%", marginBottom: 16, padding: "20px", background: "#fff", border: "2px solid #c8a96e", borderRadius: 12, cursor: "pointer", fontSize: 18, fontWeight: 700, color: "#1a1a1a" }}>💰 EDIT PRICE TIERS</button>
           
           <button onClick={() => setAdminPanel("categories")} style={{ width: "100%", marginBottom: 16, padding: "20px", background: "#fff", border: "2px solid #c8a96e", borderRadius: 12, cursor: "pointer", fontSize: 18, fontWeight: 700, color: "#1a1a1a" }}>📂 EDIT CATEGORIES</button>
-          
-          <button onClick={() => setAdminPanel("addProduct")} style={{ width: "100%", marginBottom: 16, padding: "20px", background: "#c8a96e", border: "none", borderRadius: 12, cursor: "pointer", fontSize: 18, fontWeight: 700, color: "#fff" }}>✨ ADD PRODUCT</button>
 
           <button onClick={exportToCSV} style={{ width: "100%", marginBottom: 16, padding: "20px", background: "#fff", border: "2px solid #16a34a", borderRadius: 12, cursor: "pointer", fontSize: 18, fontWeight: 700, color: "#16a34a" }}>💾 EXPORT CSV</button>
 
           <button onClick={() => setAdminPanel("backup")} style={{ width: "100%", padding: "20px", background: "#fff", border: "2px solid #2563eb", borderRadius: 12, cursor: "pointer", fontSize: 18, fontWeight: 700, color: "#2563eb" }}>📥 BACKUP GUIDE</button>
+        </div>
+      </div>
+    );
+  }
+
+  // MANAGE PRODUCTS PANEL
+  if (userMode === "adminPanel" && adminPanel === "manageProducts") {
+    return (
+      <div style={{ fontFamily: "'Inter', system-ui, sans-serif", background: "#f8f8f6", minHeight: "100vh", padding: "40px 20px" }}>
+        <div style={{ maxWidth: 900, margin: "0 auto" }}>
+          <button onClick={() => setAdminPanel(null)} style={{ marginBottom: 20, padding: "10px 20px", background: "#1a1a1a", color: "#fff", border: "none", borderRadius: 6, cursor: "pointer", fontSize: 14, fontWeight: 600 }}>← Back</button>
+          <div style={{ background: "#fff", padding: 40, borderRadius: 12, border: "2px solid #c8a96e" }}>
+            <h1 style={{ fontSize: 28, fontWeight: 700, marginBottom: 20, color: "#1a1a1a" }}>📦 MANAGE PRODUCTS</h1>
+            <input type="text" value={manageProductSearch} onChange={e => setManageProductSearch(e.target.value)} placeholder="Search by product name..." style={{ width: "100%", boxSizing: "border-box", padding: "12px 16px", fontSize: 14, border: "1.5px solid #ddd", borderRadius: 8, marginBottom: 20, fontFamily: "inherit" }} />
+            
+            <div style={{ fontSize: 13, color: "#666", marginBottom: 20 }}>Total: <strong>{filteredManageProducts.length}</strong> product(s)</div>
+
+            {filteredManageProducts.length === 0 ? (
+              <div style={{ textAlign: "center", padding: "40px 20px", color: "#aaa" }}>No products found</div>
+            ) : (
+              <div style={{ overflowX: "auto" }}>
+                <table style={{ width: "100%", borderCollapse: "collapse" }}>
+                  <thead>
+                    <tr style={{ background: "#f5f5f5" }}>
+                      <th style={{ padding: "12px", textAlign: "left", fontSize: 12, fontWeight: 700, borderBottom: "2px solid #ddd" }}>Name</th>
+                      <th style={{ padding: "12px", textAlign: "left", fontSize: 12, fontWeight: 700, borderBottom: "2px solid #ddd" }}>Category</th>
+                      <th style={{ padding: "12px", textAlign: "left", fontSize: 12, fontWeight: 700, borderBottom: "2px solid #ddd" }}>Price</th>
+                      <th style={{ padding: "12px", textAlign: "left", fontSize: 12, fontWeight: 700, borderBottom: "2px solid #ddd" }}>MOQ</th>
+                      <th style={{ padding: "12px", textAlign: "left", fontSize: 12, fontWeight: 700, borderBottom: "2px solid #ddd" }}>Lead Time</th>
+                      <th style={{ padding: "12px", textAlign: "center", fontSize: 12, fontWeight: 700, borderBottom: "2px solid #ddd" }}>Action</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filteredManageProducts.map((p, idx) => (
+                      <tr key={p.firestoreId} style={{ borderBottom: "1px solid #eee", background: idx % 2 === 0 ? "#fafafa" : "#fff" }}>
+                        <td style={{ padding: "12px", fontSize: 13, color: "#1a1a1a", fontWeight: 500 }}>{p.name}</td>
+                        <td style={{ padding: "12px", fontSize: 13, color: "#666" }}>{p.category}</td>
+                        <td style={{ padding: "12px", fontSize: 13, color: "#1a1a1a", fontWeight: 600 }}>RM{p.price}</td>
+                        <td style={{ padding: "12px", fontSize: 13, color: "#666" }}>{p.moq}</td>
+                        <td style={{ padding: "12px", fontSize: 13, color: "#666" }}>{p.leadLabel}</td>
+                        <td style={{ padding: "12px", textAlign: "center", display: "flex", gap: 8, justifyContent: "center" }}>
+                          <button onClick={() => startEditProduct(p)} style={{ padding: "6px 12px", background: "#c8a96e", color: "#fff", border: "none", borderRadius: 4, cursor: "pointer", fontWeight: 600, fontSize: 11 }}>✏️ Edit</button>
+                          <button onClick={() => deleteProduct(p.firestoreId)} style={{ padding: "6px 12px", background: "#ff5555", color: "#fff", border: "none", borderRadius: 4, cursor: "pointer", fontWeight: 600, fontSize: 11 }}>🗑️ Delete</button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
         </div>
       </div>
     );
