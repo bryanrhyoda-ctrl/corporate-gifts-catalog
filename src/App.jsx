@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect } from "react";
 import { initializeApp } from "firebase/app";
-import { getFirestore, collection, addDoc, updateDoc, deleteDoc, doc, onSnapshot, query, orderBy } from "firebase/firestore";
+import { getFirestore, collection, addDoc, updateDoc, deleteDoc, doc, onSnapshot, query, orderBy, setDoc } from "firebase/firestore";
 
 const firebaseConfig = {
   apiKey: "AIzaSyBNUhJDS5omotKq2c9ueb0p6MRUmktSZB8",
@@ -14,7 +14,6 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 
-// BRAND COLORS
 const COLORS = {
   primary: "#08e6dc",
   lime: "#adf87c",
@@ -24,7 +23,7 @@ const COLORS = {
   light: "#f1f2f2",
   white: "#fff",
   text: "#1a1a1a",
-};
+};	
 
 const DEFAULT_LEAD_TIMES = [
   { id: "L1", label: "Ready Stock", sub: "1–3 days" },
@@ -41,7 +40,7 @@ const DEFAULT_PRICE_TIERS = [
   { label: "Above RM150", min: 150, max: Infinity },
 ];
 
-const BRANDING_OPTIONS = ["Silkscreen", "Laser", "Emboss", "Deboss", "Print", "Full Print", "Custom Box", "Heat Transfer"];
+const PRINTING_OPTIONS = ["Silkscreen", "Laser", "Emboss", "Deboss", "Print", "Full Print", "Custom Box", "Heat Transfer"];
 
 const LEAD_COLORS = {
   L1: { bg: "#d0f9f7", text: "#0c5f5c", badge: "#08e6dc" },
@@ -54,18 +53,9 @@ export default function App() {
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [userMode, setUserMode] = useState("splash");
-  const [leadTimes, setLeadTimes] = useState(() => {
-    const saved = localStorage.getItem('catalogLeadTimes');
-    return saved ? JSON.parse(saved) : DEFAULT_LEAD_TIMES;
-  });
-  const [priceTiers, setPriceTiers] = useState(() => {
-    const saved = localStorage.getItem('catalogPriceTiers');
-    return saved ? JSON.parse(saved) : DEFAULT_PRICE_TIERS;
-  });
-  const [categoryList, setCategoryList] = useState(() => {
-    const saved = localStorage.getItem('catalogCategories');
-    return saved ? JSON.parse(saved) : ["Electronic", "Bottle", "Stationery"];
-  });
+  const [leadTimes, setLeadTimes] = useState([]);
+  const [priceTiers, setPriceTiers] = useState([]);
+  const [categoryList, setCategoryList] = useState([]);
 
   const [selectedPrice, setSelectedPrice] = useState(null);
   const [selectedCategory, setSelectedCategory] = useState(null);
@@ -80,20 +70,21 @@ export default function App() {
 
   const [formData, setFormData] = useState({
     name: "",
-    category: "Electronic",
+    category: "",
     price: "",
     link: "",
     size: "",
     leadTime: "L1",
     moq: "",
     image: "",
-    branding: [],
+    printing: [],
     pricingTiers: [],
   });
 
   const [newTierMoq, setNewTierMoq] = useState("");
   const [newTierPrice, setNewTierPrice] = useState("");
 
+  // FIREBASE LISTENERS
   useEffect(() => {
     const q = query(collection(db, "products"), orderBy("name"));
     const unsubscribe = onSnapshot(
@@ -107,7 +98,7 @@ export default function App() {
         setLoading(false);
       },
       (error) => {
-        console.error("🔴 Firebase error:", error);
+        console.error("Firebase error:", error);
         setLoading(false);
       }
     );
@@ -115,16 +106,37 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    localStorage.setItem('catalogLeadTimes', JSON.stringify(leadTimes));
-  }, [leadTimes]);
+    const unsubscribe = onSnapshot(doc(db, "settings", "leadTimes"), (docSnap) => {
+      if (docSnap.exists()) {
+        setLeadTimes(docSnap.data().items || DEFAULT_LEAD_TIMES);
+      } else {
+        setLeadTimes(DEFAULT_LEAD_TIMES);
+      }
+    });
+    return () => unsubscribe();
+  }, []);
 
   useEffect(() => {
-    localStorage.setItem('catalogPriceTiers', JSON.stringify(priceTiers));
-  }, [priceTiers]);
+    const unsubscribe = onSnapshot(doc(db, "settings", "priceTiers"), (docSnap) => {
+      if (docSnap.exists()) {
+        setPriceTiers(docSnap.data().items || DEFAULT_PRICE_TIERS);
+      } else {
+        setPriceTiers(DEFAULT_PRICE_TIERS);
+      }
+    });
+    return () => unsubscribe();
+  }, []);
 
   useEffect(() => {
-    localStorage.setItem('catalogCategories', JSON.stringify(categoryList));
-  }, [categoryList]);
+    const unsubscribe = onSnapshot(doc(db, "settings", "categories"), (docSnap) => {
+      if (docSnap.exists()) {
+        setCategoryList(docSnap.data().items || ["Electronic", "Bottle", "Stationery"]);
+      } else {
+        setCategoryList(["Electronic", "Bottle", "Stationery"]);
+      }
+    });
+    return () => unsubscribe();
+  }, []);
 
   const categories = categoryList.sort();
 
@@ -189,7 +201,7 @@ export default function App() {
 
   const handleAddOrEditProduct = async (e) => {
     e.preventDefault();
-    if (!formData.name || !formData.price || !formData.moq || formData.branding.length === 0) {
+    if (!formData.name || !formData.price || !formData.moq || formData.printing.length === 0 || !formData.category) {
       alert("Fill all required fields!");
       return;
     }
@@ -204,7 +216,7 @@ export default function App() {
       leadLabel: leadTimes.find(lt => lt.id === formData.leadTime)?.sub,
       moq: parseInt(formData.moq),
       image: formData.image,
-      branding: formData.branding.join(", "),
+      printing: formData.printing.join(", "),
       pricingTiers: formData.pricingTiers || [],
     };
 
@@ -218,7 +230,6 @@ export default function App() {
       }
       resetForm();
     } catch (error) {
-      console.error("🔴 Error saving product:", error);
       alert("Error: " + error.message);
     }
   };
@@ -226,14 +237,14 @@ export default function App() {
   const resetForm = () => {
     setFormData({
       name: "",
-      category: "Electronic",
+      category: "",
       price: "",
       link: "",
       size: "",
       leadTime: "L1",
       moq: "",
       image: "",
-      branding: [],
+      printing: [],
       pricingTiers: [],
     });
     setEditingId(null);
@@ -251,7 +262,7 @@ export default function App() {
       leadTime: product.leadTime,
       moq: product.moq.toString(),
       image: product.image,
-      branding: product.branding ? product.branding.split(", ").map(b => b.trim()) : [],
+      printing: product.printing ? product.printing.split(", ").map(b => b.trim()) : [],
       pricingTiers: product.pricingTiers || [],
     });
     setEditingId(product.firestoreId);
@@ -264,17 +275,16 @@ export default function App() {
       await deleteDoc(doc(db, "products", firestoreId));
       alert("✓ Deleted!");
     } catch (error) {
-      console.error("🔴 Error deleting product:", error);
       alert("Error: " + error.message);
     }
   };
 
-  const toggleBranding = (brand) => {
+  const togglePrinting = (option) => {
     setFormData(prev => ({
       ...prev,
-      branding: prev.branding.includes(brand)
-        ? prev.branding.filter(b => b !== brand)
-        : [...prev.branding, brand]
+      printing: prev.printing.includes(option)
+        ? prev.printing.filter(p => p !== option)
+        : [...prev.printing, option]
     }));
   };
 
@@ -310,7 +320,7 @@ export default function App() {
       return;
     }
 
-    const headers = ["Name", "Category", "Base Price", "Size", "Lead Time", "MOQ", "Link", "Branding"];
+    const headers = ["Name", "Category", "Base Price", "Size", "Lead Time", "MOQ", "Link", "Printing"];
     const rows = products.map(p => [
       p.name,
       p.category,
@@ -319,7 +329,7 @@ export default function App() {
       p.leadLabel || p.leadTime,
       p.moq,
       p.link || "",
-      p.branding || ""
+      p.printing || ""
     ]);
 
     let csv = headers.join(",") + "\n";
@@ -365,8 +375,77 @@ export default function App() {
       alert("Already exists!");
       return;
     }
-    setCategoryList([...categoryList, newName]);
+    const updated = [...categoryList, newName];
+    setCategoryList(updated);
+    setDoc(doc(db, "settings", "categories"), { items: updated });
     alert("✓ Added!");
+  };
+
+  const editCategory = (oldName) => {
+    const newName = prompt("New name:", oldName);
+    if (newName === null) return;
+    if (categoryList.includes(newName) && newName !== oldName) {
+      alert("Already exists!");
+      return;
+    }
+    const updated = categoryList.map(c => c === oldName ? newName : c);
+    setCategoryList(updated);
+    setDoc(doc(db, "settings", "categories"), { items: updated });
+    alert("✓ Updated!");
+  };
+
+  const deleteCategory = (name) => {
+    const productsUsing = products.filter(p => p.category === name);
+    if (productsUsing.length > 0) {
+      alert(`Can't delete - ${productsUsing.length} products use this`);
+      return;
+    }
+    if (window.confirm("Delete this category?")) {
+      const updated = categoryList.filter(c => c !== name);
+      setCategoryList(updated);
+      setDoc(doc(db, "settings", "categories"), { items: updated });
+      alert("✓ Deleted!");
+    }
+  };
+
+  const addLeadTime = () => {
+    const newLabel = prompt("New lead time label (e.g., 'Ready Stock'):");
+    if (newLabel === null) return;
+    const newSub = prompt("Time description (e.g., '1–3 days'):");
+    if (newSub === null) return;
+    
+    const newId = "L" + (leadTimes.length + 1);
+    const updated = [...leadTimes, { id: newId, label: newLabel, sub: newSub }];
+    setLeadTimes(updated);
+    setDoc(doc(db, "settings", "leadTimes"), { items: updated });
+    alert("✓ Added!");
+  };
+
+  const editLeadTime = (id) => {
+    const lt = leadTimes.find(l => l.id === id);
+    const newLabel = prompt("New label:", lt.label);
+    if (newLabel === null) return;
+    const newSub = prompt("New time:", lt.sub);
+    if (newSub === null) return;
+    
+    const updated = leadTimes.map(l => l.id === id ? { id, label: newLabel, sub: newSub } : l);
+    setLeadTimes(updated);
+    setDoc(doc(db, "settings", "leadTimes"), { items: updated });
+    alert("✓ Updated!");
+  };
+
+  const deleteLeadTime = (id) => {
+    const productsUsing = products.filter(p => p.leadTime === id);
+    if (productsUsing.length > 0) {
+      alert(`Can't delete - ${productsUsing.length} products use this`);
+      return;
+    }
+    if (window.confirm("Delete this lead time?")) {
+      const updated = leadTimes.filter(lt => lt.id !== id);
+      setLeadTimes(updated);
+      setDoc(doc(db, "settings", "leadTimes"), { items: updated });
+      alert("✓ Deleted!");
+    }
   };
 
   const editPriceTier = (oldLabel) => {
@@ -386,70 +465,17 @@ export default function App() {
       return;
     }
     
-    setPriceTiers(priceTiers.map(p => p.label === oldLabel ? { label: newLabel, min, max } : p));
+    const updated = priceTiers.map(p => p.label === oldLabel ? { label: newLabel, min, max } : p);
+    setPriceTiers(updated);
+    setDoc(doc(db, "settings", "priceTiers"), { items: updated });
     alert("✓ Updated!");
   };
 
   const deletePriceTier = (label) => {
     if (window.confirm("Delete this tier?")) {
-      setPriceTiers(priceTiers.filter(p => p.label !== label));
-      alert("✓ Deleted!");
-    }
-  };
-
-  const addLeadTime = () => {
-    const newLabel = prompt("New lead time label (e.g., 'Ready Stock'):");
-    if (newLabel === null) return;
-    const newSub = prompt("Time description (e.g., '1–3 days'):");
-    if (newSub === null) return;
-    
-    const newId = "L" + (leadTimes.length + 1);
-    setLeadTimes([...leadTimes, { id: newId, label: newLabel, sub: newSub }]);
-    alert("✓ Added!");
-  };
-
-  const editLeadTime = (id) => {
-    const lt = leadTimes.find(l => l.id === id);
-    const newLabel = prompt("New label:", lt.label);
-    if (newLabel === null) return;
-    const newSub = prompt("New time:", lt.sub);
-    if (newSub === null) return;
-    
-    setLeadTimes(leadTimes.map(l => l.id === id ? { id, label: newLabel, sub: newSub } : l));
-    alert("✓ Updated!");
-  };
-
-  const deleteLeadTime = (id) => {
-    const productsUsing = products.filter(p => p.leadTime === id);
-    if (productsUsing.length > 0) {
-      alert(`Can't delete - ${productsUsing.length} products use this`);
-      return;
-    }
-    if (window.confirm("Delete this lead time?")) {
-      setLeadTimes(leadTimes.filter(lt => lt.id !== id));
-      alert("✓ Deleted!");
-    }
-  };
-
-  const editCategory = (oldName) => {
-    const newName = prompt("New name:", oldName);
-    if (newName === null) return;
-    if (categoryList.includes(newName) && newName !== oldName) {
-      alert("Already exists!");
-      return;
-    }
-    setCategoryList(categoryList.map(c => c === oldName ? newName : c));
-    alert("✓ Updated!");
-  };
-
-  const deleteCategory = (name) => {
-    const productsUsing = products.filter(p => p.category === name);
-    if (productsUsing.length > 0) {
-      alert(`Can't delete - ${productsUsing.length} products use this`);
-      return;
-    }
-    if (window.confirm("Delete this category?")) {
-      setCategoryList(categoryList.filter(c => c !== name));
+      const updated = priceTiers.filter(p => p.label !== label);
+      setPriceTiers(updated);
+      setDoc(doc(db, "settings", "priceTiers"), { items: updated });
       alert("✓ Deleted!");
     }
   };
@@ -461,15 +487,15 @@ export default function App() {
   // PRODUCT DETAIL SIDE PANEL
   const ProductDetailPanel = ({ product, onClose }) => {
     if (!product) return null;
-    const lc = LEAD_COLORS[product.leadTime] || { bg: "#f0f0f0", text: "#666", badge: "#999" };
+    const lc = LEAD_COLORS[product.leadTime] || { bg: COLORS.light, text: COLORS.gray, badge: COLORS.gray };
     
     return (
       <>
         <div onClick={onClose} style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, background: "rgba(0,0,0,0.5)", zIndex: 998 }} />
-        <div style={{ position: "fixed", top: 0, right: 0, width: "100%", maxWidth: "400px", height: "100vh", background: COLORS.white, boxShadow: "-4px 0 20px rgba(0,0,0,0.15)", zIndex: 999, overflow: "auto" }}>
-          <div style={{ padding: "20px", borderBottom: `2px solid ${COLORS.light}`, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+        <div style={{ position: "fixed", top: 0, right: 0, width: "100%", maxWidth: "420px", height: "100vh", background: COLORS.white, boxShadow: "-4px 0 20px rgba(0,0,0,0.15)", zIndex: 999, overflow: "auto" }}>
+          <div style={{ padding: "20px", borderBottom: `2px solid ${COLORS.light}`, display: "flex", justifyContent: "space-between", alignItems: "center", position: "sticky", top: 0, background: COLORS.white }}>
             <h2 style={{ margin: 0, fontSize: 18, fontWeight: 700, color: COLORS.text }}>Product Details</h2>
-            <button onClick={onClose} style={{ background: "none", border: "none", fontSize: 24, cursor: "pointer", color: COLORS.gray }}>×</button>
+            <button onClick={onClose} style={{ background: "none", border: "none", fontSize: 24, cursor: "pointer", color: COLORS.gray, padding: 0, width: 32, height: 32, display: "flex", alignItems: "center", justifyContent: "center" }}>×</button>
           </div>
 
           <div style={{ padding: "20px" }}>
@@ -515,19 +541,19 @@ export default function App() {
               </div>
             )}
 
-            {product.branding && (
+            {product.printing && (
               <div style={{ marginBottom: 20 }}>
-                <div style={{ fontSize: 11, color: COLORS.gray, fontWeight: 600, marginBottom: 10 }}>BRANDING OPTIONS</div>
+                <div style={{ fontSize: 11, color: COLORS.gray, fontWeight: 600, marginBottom: 10 }}>PRINTING OPTIONS</div>
                 <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-                  {product.branding.split(",").map((brand, idx) => (
-                    <span key={idx} style={{ padding: "6px 10px", background: COLORS.primary, color: COLORS.white, borderRadius: 6, fontSize: 11, fontWeight: 600 }}>{brand.trim()}</span>
+                  {product.printing.split(",").map((option, idx) => (
+                    <span key={idx} style={{ padding: "6px 10px", background: COLORS.primary, color: COLORS.darkBlue, borderRadius: 6, fontSize: 11, fontWeight: 600 }}>{option.trim()}</span>
                   ))}
                 </div>
               </div>
             )}
 
             {product.link && (
-              <a href={product.link} target="_blank" rel="noopener noreferrer" style={{ display: "block", padding: "12px 16px", background: COLORS.primary, color: COLORS.white, border: "none", borderRadius: 8, fontSize: 14, fontWeight: 600, cursor: "pointer", textAlign: "center", textDecoration: "none", marginBottom: 12 }}>View Details →</a>
+              <a href={product.link} target="_blank" rel="noopener noreferrer" style={{ display: "block", padding: "12px 16px", background: COLORS.primary, color: COLORS.darkBlue, border: "none", borderRadius: 8, fontSize: 14, fontWeight: 600, cursor: "pointer", textAlign: "center", textDecoration: "none", marginBottom: 12 }}>View Website →</a>
             )}
 
             <button onClick={onClose} style={{ width: "100%", padding: "12px 16px", background: COLORS.light, color: COLORS.text, border: "none", borderRadius: 8, fontSize: 14, fontWeight: 600, cursor: "pointer" }}>Close</button>
@@ -781,13 +807,14 @@ export default function App() {
               
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
                 <select value={formData.category} onChange={e => setFormData({...formData, category: e.target.value})} style={{ padding: "12px 16px", fontSize: 14, border: `1.5px solid ${COLORS.light}`, borderRadius: 8, fontFamily: "inherit" }}>
+                  <option value="">Select category *</option>
                   {categories.map(cat => <option key={cat} value={cat}>{cat}</option>)}
                 </select>
                 <input type="number" value={formData.price} onChange={e => setFormData({...formData, price: e.target.value})} placeholder="Base Price (RM) *" style={{ padding: "12px 16px", fontSize: 14, border: `1.5px solid ${COLORS.light}`, borderRadius: 8, fontFamily: "inherit" }} />
               </div>
 
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
-                <input type="text" value={formData.link} onChange={e => setFormData({...formData, link: e.target.value})} placeholder="Link (optional)" style={{ padding: "12px 16px", fontSize: 14, border: `1.5px solid ${COLORS.light}`, borderRadius: 8, fontFamily: "inherit" }} />
+                <input type="text" value={formData.link} onChange={e => setFormData({...formData, link: e.target.value})} placeholder="Website link (optional)" style={{ padding: "12px 16px", fontSize: 14, border: `1.5px solid ${COLORS.light}`, borderRadius: 8, fontFamily: "inherit" }} />
                 <input type="text" value={formData.size} onChange={e => setFormData({...formData, size: e.target.value})} placeholder="Size (optional)" style={{ padding: "12px 16px", fontSize: 14, border: `1.5px solid ${COLORS.light}`, borderRadius: 8, fontFamily: "inherit" }} />
               </div>
 
@@ -807,10 +834,10 @@ export default function App() {
               </div>
 
               <div>
-                <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: COLORS.gray, marginBottom: 10 }}>Branding *</label>
+                <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: COLORS.gray, marginBottom: 10 }}>Printing Options *</label>
                 <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-                  {BRANDING_OPTIONS.map(brand => (
-                    <button key={brand} type="button" onClick={() => toggleBranding(brand)} style={{ padding: "8px 14px", borderRadius: 20, fontSize: 12, fontWeight: 500, cursor: "pointer", border: formData.branding.includes(brand) ? `1.5px solid ${COLORS.primary}` : `1px solid ${COLORS.light}`, background: formData.branding.includes(brand) ? COLORS.primary : COLORS.white, color: formData.branding.includes(brand) ? COLORS.darkBlue : COLORS.gray }}>{brand}</button>
+                  {PRINTING_OPTIONS.map(option => (
+                    <button key={option} type="button" onClick={() => togglePrinting(option)} style={{ padding: "8px 14px", borderRadius: 20, fontSize: 12, fontWeight: 500, cursor: "pointer", border: formData.printing.includes(option) ? `1.5px solid ${COLORS.primary}` : `1px solid ${COLORS.light}`, background: formData.printing.includes(option) ? COLORS.primary : COLORS.white, color: formData.printing.includes(option) ? COLORS.darkBlue : COLORS.gray }}>{option}</button>
                   ))}
                 </div>
               </div>
@@ -865,18 +892,18 @@ export default function App() {
     <div style={{ fontFamily: "'Inter', system-ui, sans-serif", background: COLORS.light, minHeight: "100vh", padding: "0 0 60px" }}>
       <ProductDetailPanel product={selectedProduct} onClose={() => setSelectedProduct(null)} />
 
-      <div style={{ background: COLORS.darkBlue, padding: "24px 32px", borderBottom: `3px solid ${COLORS.primary}` }}>
+      <div style={{ background: COLORS.primary, padding: "24px 32px", borderRadius: 8, marginBottom: 0 }}>
         <div style={{ maxWidth: 1200, margin: "0 auto", display: "flex", justifyContent: "space-between", alignItems: "center", gap: 16 }}>
           <div>
-            <h1 style={{ margin: 0, fontSize: 28, fontWeight: 700, color: COLORS.primary }}>Product Catalog</h1>
-            <p style={{ margin: "6px 0 0", color: COLORS.light, fontSize: 12 }}>🔒 Secure Access</p>
+            <h1 style={{ margin: 0, fontSize: 28, fontWeight: 700, color: COLORS.darkBlue }}>Product Catalog</h1>
+            <p style={{ margin: "6px 0 0", color: COLORS.darkBlue, fontSize: 12 }}>🔒 Secure Access</p>
           </div>
-          <button onClick={handleLogout} style={{ padding: "10px 20px", background: COLORS.gray, color: COLORS.white, border: "none", borderRadius: 6, fontSize: 12, fontWeight: 600, cursor: "pointer" }}>🔒 Logout</button>
+          <button onClick={handleLogout} style={{ padding: "10px 20px", background: COLORS.darkBlue, color: COLORS.primary, border: "none", borderRadius: 6, fontSize: 12, fontWeight: 600, cursor: "pointer" }}>🔒 Logout</button>
         </div>
       </div>
 
       <div style={{ maxWidth: 1200, margin: "0 auto", padding: "0 24px" }}>
-        <div style={{ paddingTop: 24, paddingBottom: 4 }}>
+        <div style={{ paddingTop: 24, paddingBottom: 12 }}>
           <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search products..." style={{ width: "100%", boxSizing: "border-box", padding: "11px 16px", fontSize: 14, border: `1.5px solid ${COLORS.light}`, borderRadius: 8, background: COLORS.white }} />
         </div>
 
@@ -935,7 +962,7 @@ export default function App() {
             {filtered.map(p => {
               const lc = LEAD_COLORS[p.leadTime] || { bg: COLORS.light, text: COLORS.gray, badge: COLORS.gray };
               return (
-                <div key={p.firestoreId} onClick={() => setSelectedProduct(p)} style={{ background: COLORS.white, borderRadius: 10, padding: "18px 20px", border: `1.5px solid ${COLORS.light}`, overflow: "hidden", cursor: "pointer", transition: "all 0.3s ease", boxShadow: "0 2px 8px rgba(0,0,0,0.08)" }}>
+                <div key={p.firestoreId} onClick={() => setSelectedProduct(p)} style={{ background: COLORS.white, borderRadius: 10, padding: "18px 20px", border: `1.5px solid ${COLORS.light}`, overflow: "hidden", cursor: "pointer", transition: "all 0.3s ease" }}>
                   {p.image ? (
                     <div style={{ width: "calc(100% + 40px)", height: 240, marginLeft: -20, marginTop: -18, marginBottom: 14, background: COLORS.light, overflow: "hidden" }}>
                       <img src={p.image} alt={p.name} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
@@ -958,7 +985,7 @@ export default function App() {
                   <div style={{ height: 1, background: COLORS.light, margin: "8px 0" }} />
                   <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, color: COLORS.gray, marginTop: 10, marginBottom: 6 }}>
                     <span>MOQ: <strong>{p.moq}</strong></span>
-                    <span style={{ fontSize: 11 }}>{p.branding}</span>
+                    <span style={{ fontSize: 11 }}>{p.printing}</span>
                   </div>
 
                   <div style={{ padding: "8px 0", background: COLORS.lime, borderRadius: 6, textAlign: "center", fontSize: 12, fontWeight: 600, color: COLORS.darkBlue }}>Click for Details →</div>
