@@ -14,6 +14,18 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 
+// BRAND COLORS
+const COLORS = {
+  primary: "#08e6dc",
+  lime: "#adf87c",
+  purple: "#855dff",
+  darkBlue: "#0c2f66",
+  gray: "#666666",
+  light: "#f1f2f2",
+  white: "#fff",
+  text: "#1a1a1a",
+};
+
 const DEFAULT_LEAD_TIMES = [
   { id: "L1", label: "Ready Stock", sub: "1–3 days" },
   { id: "L2", label: "Local Prod", sub: "5–7 days" },
@@ -32,10 +44,10 @@ const DEFAULT_PRICE_TIERS = [
 const BRANDING_OPTIONS = ["Silkscreen", "Laser", "Emboss", "Deboss", "Print", "Full Print", "Custom Box", "Heat Transfer"];
 
 const LEAD_COLORS = {
-  L1: { bg: "#dcfce7", text: "#15803d", dot: "#16a34a" },
-  L2: { bg: "#dbeafe", text: "#1d4ed8", dot: "#2563eb" },
-  L3: { bg: "#fef9c3", text: "#a16207", dot: "#ca8a04" },
-  L4: { bg: "#fee2e2", text: "#b91c1c", dot: "#dc2626" },
+  L1: { bg: "#d0f9f7", text: "#0c5f5c", badge: "#08e6dc" },
+  L2: { bg: "#e8fdc4", text: "#5a7d1e", badge: "#adf87c" },
+  L3: { bg: "#f3e5ff", text: "#5a3a8a", badge: "#855dff" },
+  L4: { bg: "#dfe8f7", text: "#1a3a6b", badge: "#0c2f66" },
 };
 
 export default function App() {
@@ -64,6 +76,7 @@ export default function App() {
   const [password, setPassword] = useState("");
   const [adminPanel, setAdminPanel] = useState(null);
   const [manageProductSearch, setManageProductSearch] = useState("");
+  const [selectedProduct, setSelectedProduct] = useState(null);
 
   const [formData, setFormData] = useState({
     name: "",
@@ -81,7 +94,6 @@ export default function App() {
   const [newTierMoq, setNewTierMoq] = useState("");
   const [newTierPrice, setNewTierPrice] = useState("");
 
-  // FIREBASE LISTENER - PRODUCTS ONLY
   useEffect(() => {
     const q = query(collection(db, "products"), orderBy("name"));
     const unsubscribe = onSnapshot(
@@ -93,7 +105,6 @@ export default function App() {
         });
         setProducts(productsArray);
         setLoading(false);
-        console.log("✓ Synced from Firebase:", productsArray.length, "products");
       },
       (error) => {
         console.error("🔴 Firebase error:", error);
@@ -200,11 +211,9 @@ export default function App() {
     try {
       if (editingId) {
         await updateDoc(doc(db, "products", editingId), productData);
-        console.log("✓ Product updated in Firebase");
         alert("✓ Updated!");
       } else {
         await addDoc(collection(db, "products"), productData);
-        console.log("✓ Product added to Firebase");
         alert("✓ Added!");
       }
       resetForm();
@@ -253,7 +262,6 @@ export default function App() {
     if (!window.confirm("Delete this product?")) return;
     try {
       await deleteDoc(doc(db, "products", firestoreId));
-      console.log("✓ Product deleted from Firebase");
       alert("✓ Deleted!");
     } catch (error) {
       console.error("🔴 Error deleting product:", error);
@@ -450,18 +458,97 @@ export default function App() {
     return <div style={{ textAlign: "center", padding: "60px 20px", fontFamily: "'Inter', system-ui, sans-serif" }}>Loading from Firebase...</div>;
   }
 
+  // PRODUCT DETAIL SIDE PANEL
+  const ProductDetailPanel = ({ product, onClose }) => {
+    if (!product) return null;
+    const lc = LEAD_COLORS[product.leadTime] || { bg: "#f0f0f0", text: "#666", badge: "#999" };
+    
+    return (
+      <>
+        <div onClick={onClose} style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, background: "rgba(0,0,0,0.5)", zIndex: 998 }} />
+        <div style={{ position: "fixed", top: 0, right: 0, width: "100%", maxWidth: "400px", height: "100vh", background: COLORS.white, boxShadow: "-4px 0 20px rgba(0,0,0,0.15)", zIndex: 999, overflow: "auto" }}>
+          <div style={{ padding: "20px", borderBottom: `2px solid ${COLORS.light}`, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <h2 style={{ margin: 0, fontSize: 18, fontWeight: 700, color: COLORS.text }}>Product Details</h2>
+            <button onClick={onClose} style={{ background: "none", border: "none", fontSize: 24, cursor: "pointer", color: COLORS.gray }}>×</button>
+          </div>
+
+          <div style={{ padding: "20px" }}>
+            {product.image && (
+              <div style={{ width: "100%", height: 280, background: COLORS.light, borderRadius: 10, marginBottom: 20, overflow: "hidden" }}>
+                <img src={product.image} alt={product.name} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+              </div>
+            )}
+
+            <div style={{ marginBottom: 20 }}>
+              <div style={{ fontSize: 10, fontWeight: 700, color: COLORS.gray, textTransform: "uppercase", marginBottom: 6 }}>{product.category}</div>
+              <h3 style={{ margin: "0 0 8px", fontSize: 22, fontWeight: 700, color: COLORS.text }}>{product.name}</h3>
+              {product.size && <div style={{ fontSize: 13, color: COLORS.gray, marginBottom: 12 }}>Size: {product.size}</div>}
+            </div>
+
+            <div style={{ display: "inline-flex", alignItems: "center", gap: 6, background: lc.bg, color: lc.text, borderRadius: 8, padding: "6px 12px", fontSize: 12, fontWeight: 600, marginBottom: 20 }}>
+              <span style={{ width: 8, height: 8, borderRadius: "50%", background: lc.badge }} />
+              {product.leadLabel}
+            </div>
+
+            <div style={{ padding: 16, background: COLORS.light, borderRadius: 10, marginBottom: 20 }}>
+              <div style={{ fontSize: 11, color: COLORS.gray, fontWeight: 600, marginBottom: 8 }}>PRICE</div>
+              <div style={{ fontSize: 28, fontWeight: 800, color: COLORS.primary }}>RM{product.price}</div>
+              <div style={{ fontSize: 12, color: COLORS.gray }}>per unit</div>
+            </div>
+
+            <div style={{ padding: 16, background: COLORS.light, borderRadius: 10, marginBottom: 20 }}>
+              <div style={{ fontSize: 11, color: COLORS.gray, fontWeight: 600, marginBottom: 8 }}>MINIMUM ORDER QUANTITY</div>
+              <div style={{ fontSize: 24, fontWeight: 800, color: COLORS.purple }}>{product.moq}</div>
+            </div>
+
+            {product.pricingTiers && product.pricingTiers.length > 0 && (
+              <div style={{ padding: 16, background: COLORS.light, borderRadius: 10, marginBottom: 20 }}>
+                <div style={{ fontSize: 11, color: COLORS.gray, fontWeight: 600, marginBottom: 12 }}>💰 TIERED PRICING</div>
+                <div style={{ display: "grid", gap: 8 }}>
+                  {product.pricingTiers.map((tier, idx) => (
+                    <div key={idx} style={{ display: "flex", justifyContent: "space-between", padding: "8px 0", borderBottom: "1px solid #e0e0e0" }}>
+                      <span style={{ fontSize: 12, color: COLORS.gray }}>MOQ {tier.moq}+</span>
+                      <span style={{ fontSize: 12, fontWeight: 600, color: COLORS.primary }}>RM{tier.price}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {product.branding && (
+              <div style={{ marginBottom: 20 }}>
+                <div style={{ fontSize: 11, color: COLORS.gray, fontWeight: 600, marginBottom: 10 }}>BRANDING OPTIONS</div>
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                  {product.branding.split(",").map((brand, idx) => (
+                    <span key={idx} style={{ padding: "6px 10px", background: COLORS.primary, color: COLORS.white, borderRadius: 6, fontSize: 11, fontWeight: 600 }}>{brand.trim()}</span>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {product.link && (
+              <a href={product.link} target="_blank" rel="noopener noreferrer" style={{ display: "block", padding: "12px 16px", background: COLORS.primary, color: COLORS.white, border: "none", borderRadius: 8, fontSize: 14, fontWeight: 600, cursor: "pointer", textAlign: "center", textDecoration: "none", marginBottom: 12 }}>View Details →</a>
+            )}
+
+            <button onClick={onClose} style={{ width: "100%", padding: "12px 16px", background: COLORS.light, color: COLORS.text, border: "none", borderRadius: 8, fontSize: 14, fontWeight: 600, cursor: "pointer" }}>Close</button>
+          </div>
+        </div>
+      </>
+    );
+  };
+
   // SPLASH SCREEN
   if (userMode === "splash") {
     return (
-      <div style={{ fontFamily: "'Inter', system-ui, sans-serif", background: "#f8f8f6", minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", padding: "20px" }}>
+      <div style={{ fontFamily: "'Inter', system-ui, sans-serif", background: COLORS.darkBlue, minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", padding: "20px" }}>
         <div style={{ maxWidth: 500, width: "100%", textAlign: "center" }}>
           <div style={{ fontSize: 48, marginBottom: 20 }}>🎁</div>
-          <h1 style={{ fontSize: 36, fontWeight: 700, color: "#1a1a1a", marginBottom: 10 }}>Product Catalog</h1>
-          <p style={{ fontSize: 16, color: "#666", marginBottom: 40 }}>Corporate Gifts Agency</p>
+          <h1 style={{ fontSize: 36, fontWeight: 700, color: COLORS.primary, marginBottom: 10 }}>Product Catalog</h1>
+          <p style={{ fontSize: 16, color: COLORS.light, marginBottom: 40 }}>Corporate Gifts Agency</p>
           
-          <button onClick={() => setUserMode("catalogLogin")} style={{ width: "100%", padding: "16px 24px", background: "#c8a96e", color: "#fff", border: "none", borderRadius: 10, fontSize: 16, fontWeight: 700, cursor: "pointer", marginBottom: 12 }}>👁️ View Catalog</button>
+          <button onClick={() => setUserMode("catalogLogin")} style={{ width: "100%", padding: "16px 24px", background: COLORS.primary, color: COLORS.darkBlue, border: "none", borderRadius: 10, fontSize: 16, fontWeight: 700, cursor: "pointer", marginBottom: 12 }}>👁️ View Catalog</button>
           
-          <button onClick={() => setUserMode("adminLogin")} style={{ width: "100%", padding: "16px 24px", background: "#666", color: "#fff", border: "none", borderRadius: 10, fontSize: 16, fontWeight: 700, cursor: "pointer" }}>🔓 Admin</button>
+          <button onClick={() => setUserMode("adminLogin")} style={{ width: "100%", padding: "16px 24px", background: COLORS.purple, color: COLORS.white, border: "none", borderRadius: 10, fontSize: 16, fontWeight: 700, cursor: "pointer" }}>🔓 Admin</button>
         </div>
       </div>
     );
@@ -470,12 +557,12 @@ export default function App() {
   // CATALOG LOGIN
   if (userMode === "catalogLogin") {
     return (
-      <div style={{ fontFamily: "'Inter', system-ui, sans-serif", background: "#f8f8f6", minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", padding: "20px" }}>
-        <div style={{ maxWidth: 400, width: "100%", background: "#fff", padding: 40, borderRadius: 12, boxShadow: "0 10px 40px rgba(0,0,0,0.1)" }}>
-          <h2 style={{ fontSize: 24, fontWeight: 700, color: "#1a1a1a", marginBottom: 30, textAlign: "center" }}>👁️ View Catalog</h2>
-          <input type="password" value={password} onChange={e => setPassword(e.target.value)} onKeyPress={e => e.key === "Enter" && handleCatalogLogin()} placeholder="Enter password" style={{ width: "100%", boxSizing: "border-box", padding: "12px 16px", fontSize: 14, border: "1.5px solid #ddd", borderRadius: 8, marginBottom: 16, fontFamily: "inherit" }} autoFocus />
-          <button onClick={handleCatalogLogin} style={{ width: "100%", padding: "12px 24px", background: "#c8a96e", color: "#fff", border: "none", borderRadius: 8, fontSize: 14, fontWeight: 600, cursor: "pointer", marginBottom: 8 }}>Login</button>
-          <button onClick={() => { setUserMode("splash"); setPassword(""); }} style={{ width: "100%", padding: "12px 24px", background: "#ddd", color: "#1a1a1a", border: "none", borderRadius: 8, fontSize: 14, fontWeight: 600, cursor: "pointer" }}>Back</button>
+      <div style={{ fontFamily: "'Inter', system-ui, sans-serif", background: COLORS.light, minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", padding: "20px" }}>
+        <div style={{ maxWidth: 400, width: "100%", background: COLORS.white, padding: 40, borderRadius: 12, boxShadow: "0 10px 40px rgba(0,0,0,0.1)" }}>
+          <h2 style={{ fontSize: 24, fontWeight: 700, color: COLORS.darkBlue, marginBottom: 30, textAlign: "center" }}>👁️ View Catalog</h2>
+          <input type="password" value={password} onChange={e => setPassword(e.target.value)} onKeyPress={e => e.key === "Enter" && handleCatalogLogin()} placeholder="Enter password" style={{ width: "100%", boxSizing: "border-box", padding: "12px 16px", fontSize: 14, border: `1.5px solid ${COLORS.light}`, borderRadius: 8, marginBottom: 16, fontFamily: "inherit" }} autoFocus />
+          <button onClick={handleCatalogLogin} style={{ width: "100%", padding: "12px 24px", background: COLORS.primary, color: COLORS.darkBlue, border: "none", borderRadius: 8, fontSize: 14, fontWeight: 600, cursor: "pointer", marginBottom: 8 }}>Login</button>
+          <button onClick={() => { setUserMode("splash"); setPassword(""); }} style={{ width: "100%", padding: "12px 24px", background: COLORS.light, color: COLORS.text, border: "none", borderRadius: 8, fontSize: 14, fontWeight: 600, cursor: "pointer" }}>Back</button>
         </div>
       </div>
     );
@@ -484,12 +571,12 @@ export default function App() {
   // ADMIN LOGIN
   if (userMode === "adminLogin") {
     return (
-      <div style={{ fontFamily: "'Inter', system-ui, sans-serif", background: "#f8f8f6", minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", padding: "20px" }}>
-        <div style={{ maxWidth: 400, width: "100%", background: "#fff", padding: 40, borderRadius: 12, boxShadow: "0 10px 40px rgba(0,0,0,0.1)" }}>
-          <h2 style={{ fontSize: 24, fontWeight: 700, color: "#1a1a1a", marginBottom: 30, textAlign: "center" }}>🔓 Admin Login</h2>
-          <input type="password" value={password} onChange={e => setPassword(e.target.value)} onKeyPress={e => e.key === "Enter" && handleAdminLogin()} placeholder="Enter admin password" style={{ width: "100%", boxSizing: "border-box", padding: "12px 16px", fontSize: 14, border: "1.5px solid #ddd", borderRadius: 8, marginBottom: 16, fontFamily: "inherit" }} autoFocus />
-          <button onClick={handleAdminLogin} style={{ width: "100%", padding: "12px 24px", background: "#c8a96e", color: "#fff", border: "none", borderRadius: 8, fontSize: 14, fontWeight: 600, cursor: "pointer", marginBottom: 8 }}>Login</button>
-          <button onClick={() => { setUserMode("splash"); setPassword(""); }} style={{ width: "100%", padding: "12px 24px", background: "#ddd", color: "#1a1a1a", border: "none", borderRadius: 8, fontSize: 14, fontWeight: 600, cursor: "pointer" }}>Back</button>
+      <div style={{ fontFamily: "'Inter', system-ui, sans-serif", background: COLORS.light, minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", padding: "20px" }}>
+        <div style={{ maxWidth: 400, width: "100%", background: COLORS.white, padding: 40, borderRadius: 12, boxShadow: "0 10px 40px rgba(0,0,0,0.1)" }}>
+          <h2 style={{ fontSize: 24, fontWeight: 700, color: COLORS.darkBlue, marginBottom: 30, textAlign: "center" }}>🔓 Admin Login</h2>
+          <input type="password" value={password} onChange={e => setPassword(e.target.value)} onKeyPress={e => e.key === "Enter" && handleAdminLogin()} placeholder="Enter admin password" style={{ width: "100%", boxSizing: "border-box", padding: "12px 16px", fontSize: 14, border: `1.5px solid ${COLORS.light}`, borderRadius: 8, marginBottom: 16, fontFamily: "inherit" }} autoFocus />
+          <button onClick={handleAdminLogin} style={{ width: "100%", padding: "12px 24px", background: COLORS.purple, color: COLORS.white, border: "none", borderRadius: 8, fontSize: 14, fontWeight: 600, cursor: "pointer", marginBottom: 8 }}>Login</button>
+          <button onClick={() => { setUserMode("splash"); setPassword(""); }} style={{ width: "100%", padding: "12px 24px", background: COLORS.light, color: COLORS.text, border: "none", borderRadius: 8, fontSize: 14, fontWeight: 600, cursor: "pointer" }}>Back</button>
         </div>
       </div>
     );
@@ -498,24 +585,24 @@ export default function App() {
   // ADMIN MENU
   if (userMode === "adminPanel" && !adminPanel) {
     return (
-      <div style={{ fontFamily: "'Inter', system-ui, sans-serif", background: "#f8f8f6", minHeight: "100vh", padding: "40px 20px" }}>
+      <div style={{ fontFamily: "'Inter', system-ui, sans-serif", background: COLORS.light, minHeight: "100vh", padding: "40px 20px" }}>
         <div style={{ maxWidth: 600, margin: "0 auto" }}>
-          <h1 style={{ fontSize: 36, fontWeight: 700, marginBottom: 40, color: "#1a1a1a", textAlign: "center" }}>⚙️ ADMIN PANEL</h1>
-          <button onClick={handleLogout} style={{ width: "100%", marginBottom: 20, padding: "12px 20px", background: "#666", color: "#fff", border: "none", borderRadius: 8, cursor: "pointer", fontSize: 14, fontWeight: 600 }}>🔒 Logout</button>
+          <h1 style={{ fontSize: 36, fontWeight: 700, marginBottom: 40, color: COLORS.darkBlue, textAlign: "center" }}>⚙️ ADMIN PANEL</h1>
+          <button onClick={handleLogout} style={{ width: "100%", marginBottom: 20, padding: "12px 20px", background: COLORS.gray, color: COLORS.white, border: "none", borderRadius: 8, cursor: "pointer", fontSize: 14, fontWeight: 600 }}>🔒 Logout</button>
           
-          <button onClick={() => setAdminPanel("manageProducts")} style={{ width: "100%", marginBottom: 16, padding: "20px", background: "#fff", border: "2px solid #c8a96e", borderRadius: 12, cursor: "pointer", fontSize: 18, fontWeight: 700, color: "#1a1a1a" }}>📦 MANAGE PRODUCTS</button>
+          <button onClick={() => setAdminPanel("manageProducts")} style={{ width: "100%", marginBottom: 16, padding: "20px", background: COLORS.white, border: `2px solid ${COLORS.primary}`, borderRadius: 12, cursor: "pointer", fontSize: 18, fontWeight: 700, color: COLORS.darkBlue }}>📦 MANAGE PRODUCTS</button>
 
-          <button onClick={() => setAdminPanel("addProduct")} style={{ width: "100%", marginBottom: 16, padding: "20px", background: "#c8a96e", border: "none", borderRadius: 12, cursor: "pointer", fontSize: 18, fontWeight: 700, color: "#fff" }}>✨ ADD PRODUCT</button>
+          <button onClick={() => setAdminPanel("addProduct")} style={{ width: "100%", marginBottom: 16, padding: "20px", background: COLORS.primary, border: "none", borderRadius: 12, cursor: "pointer", fontSize: 18, fontWeight: 700, color: COLORS.darkBlue }}>✨ ADD PRODUCT</button>
           
-          <button onClick={() => setAdminPanel("leadTimes")} style={{ width: "100%", marginBottom: 16, padding: "20px", background: "#fff", border: "2px solid #c8a96e", borderRadius: 12, cursor: "pointer", fontSize: 18, fontWeight: 700, color: "#1a1a1a" }}>⏱️ EDIT LEAD TIMES</button>
+          <button onClick={() => setAdminPanel("leadTimes")} style={{ width: "100%", marginBottom: 16, padding: "20px", background: COLORS.white, border: `2px solid ${COLORS.lime}`, borderRadius: 12, cursor: "pointer", fontSize: 18, fontWeight: 700, color: COLORS.darkBlue }}>⏱️ EDIT LEAD TIMES</button>
           
-          <button onClick={() => setAdminPanel("priceTiers")} style={{ width: "100%", marginBottom: 16, padding: "20px", background: "#fff", border: "2px solid #c8a96e", borderRadius: 12, cursor: "pointer", fontSize: 18, fontWeight: 700, color: "#1a1a1a" }}>💰 EDIT PRICE TIERS</button>
+          <button onClick={() => setAdminPanel("priceTiers")} style={{ width: "100%", marginBottom: 16, padding: "20px", background: COLORS.white, border: `2px solid ${COLORS.purple}`, borderRadius: 12, cursor: "pointer", fontSize: 18, fontWeight: 700, color: COLORS.darkBlue }}>💰 EDIT PRICE TIERS</button>
           
-          <button onClick={() => setAdminPanel("categories")} style={{ width: "100%", marginBottom: 16, padding: "20px", background: "#fff", border: "2px solid #c8a96e", borderRadius: 12, cursor: "pointer", fontSize: 18, fontWeight: 700, color: "#1a1a1a" }}>📂 EDIT CATEGORIES</button>
+          <button onClick={() => setAdminPanel("categories")} style={{ width: "100%", marginBottom: 16, padding: "20px", background: COLORS.white, border: `2px solid ${COLORS.primary}`, borderRadius: 12, cursor: "pointer", fontSize: 18, fontWeight: 700, color: COLORS.darkBlue }}>📂 EDIT CATEGORIES</button>
 
-          <button onClick={exportToCSV} style={{ width: "100%", marginBottom: 16, padding: "20px", background: "#fff", border: "2px solid #16a34a", borderRadius: 12, cursor: "pointer", fontSize: 18, fontWeight: 700, color: "#16a34a" }}>💾 EXPORT CSV</button>
+          <button onClick={exportToCSV} style={{ width: "100%", marginBottom: 16, padding: "20px", background: COLORS.white, border: `2px solid ${COLORS.lime}`, borderRadius: 12, cursor: "pointer", fontSize: 18, fontWeight: 700, color: COLORS.lime }}>💾 EXPORT CSV</button>
 
-          <button onClick={() => setAdminPanel("backup")} style={{ width: "100%", padding: "20px", background: "#fff", border: "2px solid #2563eb", borderRadius: 12, cursor: "pointer", fontSize: 18, fontWeight: 700, color: "#2563eb" }}>📥 BACKUP GUIDE</button>
+          <button onClick={() => setAdminPanel("backup")} style={{ width: "100%", padding: "20px", background: COLORS.white, border: `2px solid ${COLORS.darkBlue}`, borderRadius: 12, cursor: "pointer", fontSize: 18, fontWeight: 700, color: COLORS.darkBlue }}>📥 BACKUP GUIDE</button>
         </div>
       </div>
     );
@@ -524,41 +611,41 @@ export default function App() {
   // MANAGE PRODUCTS PANEL
   if (userMode === "adminPanel" && adminPanel === "manageProducts") {
     return (
-      <div style={{ fontFamily: "'Inter', system-ui, sans-serif", background: "#f8f8f6", minHeight: "100vh", padding: "40px 20px" }}>
+      <div style={{ fontFamily: "'Inter', system-ui, sans-serif", background: COLORS.light, minHeight: "100vh", padding: "40px 20px" }}>
         <div style={{ maxWidth: 900, margin: "0 auto" }}>
-          <button onClick={() => setAdminPanel(null)} style={{ marginBottom: 20, padding: "10px 20px", background: "#1a1a1a", color: "#fff", border: "none", borderRadius: 6, cursor: "pointer", fontSize: 14, fontWeight: 600 }}>← Back</button>
-          <div style={{ background: "#fff", padding: 40, borderRadius: 12, border: "2px solid #c8a96e" }}>
-            <h1 style={{ fontSize: 28, fontWeight: 700, marginBottom: 20, color: "#1a1a1a" }}>📦 MANAGE PRODUCTS</h1>
-            <input type="text" value={manageProductSearch} onChange={e => setManageProductSearch(e.target.value)} placeholder="Search by product name..." style={{ width: "100%", boxSizing: "border-box", padding: "12px 16px", fontSize: 14, border: "1.5px solid #ddd", borderRadius: 8, marginBottom: 20, fontFamily: "inherit" }} />
+          <button onClick={() => setAdminPanel(null)} style={{ marginBottom: 20, padding: "10px 20px", background: COLORS.darkBlue, color: COLORS.white, border: "none", borderRadius: 6, cursor: "pointer", fontSize: 14, fontWeight: 600 }}>← Back</button>
+          <div style={{ background: COLORS.white, padding: 40, borderRadius: 12, border: `2px solid ${COLORS.primary}` }}>
+            <h1 style={{ fontSize: 28, fontWeight: 700, marginBottom: 20, color: COLORS.darkBlue }}>📦 MANAGE PRODUCTS</h1>
+            <input type="text" value={manageProductSearch} onChange={e => setManageProductSearch(e.target.value)} placeholder="Search by product name..." style={{ width: "100%", boxSizing: "border-box", padding: "12px 16px", fontSize: 14, border: `1.5px solid ${COLORS.light}`, borderRadius: 8, marginBottom: 20, fontFamily: "inherit" }} />
             
-            <div style={{ fontSize: 13, color: "#666", marginBottom: 20 }}>Total: <strong>{filteredManageProducts.length}</strong> product(s)</div>
+            <div style={{ fontSize: 13, color: COLORS.gray, marginBottom: 20 }}>Total: <strong>{filteredManageProducts.length}</strong> product(s)</div>
 
             {filteredManageProducts.length === 0 ? (
-              <div style={{ textAlign: "center", padding: "40px 20px", color: "#aaa" }}>No products found</div>
+              <div style={{ textAlign: "center", padding: "40px 20px", color: COLORS.gray }}>No products found</div>
             ) : (
               <div style={{ overflowX: "auto" }}>
                 <table style={{ width: "100%", borderCollapse: "collapse" }}>
                   <thead>
-                    <tr style={{ background: "#f5f5f5" }}>
-                      <th style={{ padding: "12px", textAlign: "left", fontSize: 12, fontWeight: 700, borderBottom: "2px solid #ddd" }}>Name</th>
-                      <th style={{ padding: "12px", textAlign: "left", fontSize: 12, fontWeight: 700, borderBottom: "2px solid #ddd" }}>Category</th>
-                      <th style={{ padding: "12px", textAlign: "left", fontSize: 12, fontWeight: 700, borderBottom: "2px solid #ddd" }}>Price</th>
-                      <th style={{ padding: "12px", textAlign: "left", fontSize: 12, fontWeight: 700, borderBottom: "2px solid #ddd" }}>MOQ</th>
-                      <th style={{ padding: "12px", textAlign: "left", fontSize: 12, fontWeight: 700, borderBottom: "2px solid #ddd" }}>Lead Time</th>
-                      <th style={{ padding: "12px", textAlign: "center", fontSize: 12, fontWeight: 700, borderBottom: "2px solid #ddd" }}>Action</th>
+                    <tr style={{ background: COLORS.light }}>
+                      <th style={{ padding: "12px", textAlign: "left", fontSize: 12, fontWeight: 700, borderBottom: `2px solid ${COLORS.gray}` }}>Name</th>
+                      <th style={{ padding: "12px", textAlign: "left", fontSize: 12, fontWeight: 700, borderBottom: `2px solid ${COLORS.gray}` }}>Category</th>
+                      <th style={{ padding: "12px", textAlign: "left", fontSize: 12, fontWeight: 700, borderBottom: `2px solid ${COLORS.gray}` }}>Price</th>
+                      <th style={{ padding: "12px", textAlign: "left", fontSize: 12, fontWeight: 700, borderBottom: `2px solid ${COLORS.gray}` }}>MOQ</th>
+                      <th style={{ padding: "12px", textAlign: "left", fontSize: 12, fontWeight: 700, borderBottom: `2px solid ${COLORS.gray}` }}>Lead Time</th>
+                      <th style={{ padding: "12px", textAlign: "center", fontSize: 12, fontWeight: 700, borderBottom: `2px solid ${COLORS.gray}` }}>Action</th>
                     </tr>
                   </thead>
                   <tbody>
                     {filteredManageProducts.map((p, idx) => (
-                      <tr key={p.firestoreId} style={{ borderBottom: "1px solid #eee", background: idx % 2 === 0 ? "#fafafa" : "#fff" }}>
-                        <td style={{ padding: "12px", fontSize: 13, color: "#1a1a1a", fontWeight: 500 }}>{p.name}</td>
-                        <td style={{ padding: "12px", fontSize: 13, color: "#666" }}>{p.category}</td>
-                        <td style={{ padding: "12px", fontSize: 13, color: "#1a1a1a", fontWeight: 600 }}>RM{p.price}</td>
-                        <td style={{ padding: "12px", fontSize: 13, color: "#666" }}>{p.moq}</td>
-                        <td style={{ padding: "12px", fontSize: 13, color: "#666" }}>{p.leadLabel}</td>
+                      <tr key={p.firestoreId} style={{ borderBottom: `1px solid ${COLORS.light}`, background: idx % 2 === 0 ? COLORS.light : COLORS.white }}>
+                        <td style={{ padding: "12px", fontSize: 13, color: COLORS.text, fontWeight: 500 }}>{p.name}</td>
+                        <td style={{ padding: "12px", fontSize: 13, color: COLORS.gray }}>{p.category}</td>
+                        <td style={{ padding: "12px", fontSize: 13, color: COLORS.text, fontWeight: 600 }}>RM{p.price}</td>
+                        <td style={{ padding: "12px", fontSize: 13, color: COLORS.gray }}>{p.moq}</td>
+                        <td style={{ padding: "12px", fontSize: 13, color: COLORS.gray }}>{p.leadLabel}</td>
                         <td style={{ padding: "12px", textAlign: "center", display: "flex", gap: 8, justifyContent: "center" }}>
-                          <button onClick={() => startEditProduct(p)} style={{ padding: "6px 12px", background: "#c8a96e", color: "#fff", border: "none", borderRadius: 4, cursor: "pointer", fontWeight: 600, fontSize: 11 }}>✏️ Edit</button>
-                          <button onClick={() => deleteProduct(p.firestoreId)} style={{ padding: "6px 12px", background: "#ff5555", color: "#fff", border: "none", borderRadius: 4, cursor: "pointer", fontWeight: 600, fontSize: 11 }}>🗑️ Delete</button>
+                          <button onClick={() => startEditProduct(p)} style={{ padding: "6px 12px", background: COLORS.primary, color: COLORS.darkBlue, border: "none", borderRadius: 4, cursor: "pointer", fontWeight: 600, fontSize: 11 }}>✏️ Edit</button>
+                          <button onClick={() => deleteProduct(p.firestoreId)} style={{ padding: "6px 12px", background: "#ff5555", color: COLORS.white, border: "none", borderRadius: 4, cursor: "pointer", fontWeight: 600, fontSize: 11 }}>🗑️ Delete</button>
                         </td>
                       </tr>
                     ))}
@@ -575,48 +662,28 @@ export default function App() {
   // BACKUP GUIDE
   if (userMode === "adminPanel" && adminPanel === "backup") {
     return (
-      <div style={{ fontFamily: "'Inter', system-ui, sans-serif", background: "#f8f8f6", minHeight: "100vh", padding: "40px 20px" }}>
+      <div style={{ fontFamily: "'Inter', system-ui, sans-serif", background: COLORS.light, minHeight: "100vh", padding: "40px 20px" }}>
         <div style={{ maxWidth: 700, margin: "0 auto" }}>
-          <button onClick={() => setAdminPanel(null)} style={{ marginBottom: 20, padding: "10px 20px", background: "#1a1a1a", color: "#fff", border: "none", borderRadius: 6, cursor: "pointer", fontSize: 14, fontWeight: 600 }}>← Back</button>
-          <div style={{ background: "#fff", padding: 40, borderRadius: 12, border: "2px solid #2563eb" }}>
-            <h1 style={{ fontSize: 28, fontWeight: 700, marginBottom: 30, color: "#1a1a1a" }}>📥 FIREBASE BACKUP GUIDE</h1>
+          <button onClick={() => setAdminPanel(null)} style={{ marginBottom: 20, padding: "10px 20px", background: COLORS.darkBlue, color: COLORS.white, border: "none", borderRadius: 6, cursor: "pointer", fontSize: 14, fontWeight: 600 }}>← Back</button>
+          <div style={{ background: COLORS.white, padding: 40, borderRadius: 12, border: `2px solid ${COLORS.darkBlue}` }}>
+            <h1 style={{ fontSize: 28, fontWeight: 700, marginBottom: 30, color: COLORS.darkBlue }}>📥 FIREBASE BACKUP GUIDE</h1>
             
-            <div style={{ marginBottom: 30, padding: 20, background: "#eff6ff", borderRadius: 8, borderLeft: "4px solid #2563eb" }}>
-              <h3 style={{ fontSize: 16, fontWeight: 700, color: "#1a1a1a", marginBottom: 10 }}>Why Backup?</h3>
-              <p style={{ fontSize: 14, color: "#666", margin: 0 }}>Firebase stores all your product data safely, but you should keep backups for extra protection. We recommend exporting data weekly.</p>
+            <div style={{ marginBottom: 30, padding: 20, background: `${COLORS.primary}20`, borderRadius: 8, borderLeft: `4px solid ${COLORS.primary}` }}>
+              <h3 style={{ fontSize: 16, fontWeight: 700, color: COLORS.darkBlue, marginBottom: 10 }}>Why Backup?</h3>
+              <p style={{ fontSize: 14, color: COLORS.gray, margin: 0 }}>Firebase stores all your product data safely, but you should keep backups for extra protection. We recommend exporting data weekly.</p>
             </div>
 
-            <h2 style={{ fontSize: 18, fontWeight: 700, color: "#1a1a1a", marginBottom: 16 }}>📋 Method 1: CSV Export (EASIEST)</h2>
+            <h2 style={{ fontSize: 18, fontWeight: 700, color: COLORS.darkBlue, marginBottom: 16 }}>📋 Method 1: CSV Export (EASIEST)</h2>
             <div style={{ marginBottom: 20, paddingLeft: 20 }}>
-              <p style={{ fontSize: 14, color: "#666", margin: "0 0 8px" }}>1. Go back to Admin Panel</p>
-              <p style={{ fontSize: 14, color: "#666", margin: "0 0 8px" }}>2. Click <strong>"💾 EXPORT CSV"</strong></p>
-              <p style={{ fontSize: 14, color: "#666", margin: "0 0 8px" }}>3. A file downloads automatically</p>
-              <p style={{ fontSize: 14, color: "#666", margin: 0 }}>4. Save it to Google Drive or your computer</p>
-              <p style={{ fontSize: 12, color: "#16a34a", marginTop: 10, fontWeight: 600 }}>✓ Do this weekly for safety!</p>
+              <p style={{ fontSize: 14, color: COLORS.gray, margin: "0 0 8px" }}>1. Go back to Admin Panel</p>
+              <p style={{ fontSize: 14, color: COLORS.gray, margin: "0 0 8px" }}>2. Click <strong>"💾 EXPORT CSV"</strong></p>
+              <p style={{ fontSize: 14, color: COLORS.gray, margin: "0 0 8px" }}>3. A file downloads automatically</p>
+              <p style={{ fontSize: 14, color: COLORS.gray, margin: 0 }}>4. Save it to Google Drive or your computer</p>
+              <p style={{ fontSize: 12, color: COLORS.lime, marginTop: 10, fontWeight: 600 }}>✓ Do this weekly for safety!</p>
             </div>
 
-            <h2 style={{ fontSize: 18, fontWeight: 700, color: "#1a1a1a", marginBottom: 16 }}>🔐 Method 2: Firebase Console (PROFESSIONAL)</h2>
-            <div style={{ marginBottom: 20, paddingLeft: 20 }}>
-              <p style={{ fontSize: 14, color: "#666", margin: "0 0 8px" }}>1. Go to: <strong>https://console.firebase.google.com</strong></p>
-              <p style={{ fontSize: 14, color: "#666", margin: "0 0 8px" }}>2. Select: <strong>"corporate-gifts-catalog"</strong></p>
-              <p style={{ fontSize: 14, color: "#666", margin: "0 0 8px" }}>3. Go to: <strong>Firestore Database</strong></p>
-              <p style={{ fontSize: 14, color: "#666", margin: "0 0 8px" }}>4. Click: <strong>"products" collection</strong></p>
-              <p style={{ fontSize: 14, color: "#666", margin: "0 0 8px" }}>5. Click 3 dots ⋯ → <strong>"Export Collection"</strong></p>
-              <p style={{ fontSize: 14, color: "#666", margin: 0 }}>6. Save to Google Drive</p>
-              <p style={{ fontSize: 12, color: "#2563eb", marginTop: 10, fontWeight: 600 }}>ℹ️ Creates automatic backups you can restore from</p>
-            </div>
-
-            <h2 style={{ fontSize: 18, fontWeight: 700, color: "#1a1a1a", marginBottom: 16 }}>✓ Your Data is SAFE Because:</h2>
-            <div style={{ paddingLeft: 20 }}>
-              <p style={{ fontSize: 14, color: "#666", margin: "0 0 8px" }}>✅ Google Firebase = enterprise-grade security</p>
-              <p style={{ fontSize: 14, color: "#666", margin: "0 0 8px" }}>✅ Automatic daily backups across regions</p>
-              <p style={{ fontSize: 14, color: "#666", margin: "0 0 8px" }}>✅ 99.99% uptime guarantee</p>
-              <p style={{ fontSize: 14, color: "#666", margin: "0 0 8px" }}>✅ Encrypted in transit & at rest</p>
-              <p style={{ fontSize: 14, color: "#666", margin: 0 }}>✅ Only you can access with password protection</p>
-            </div>
-
-            <div style={{ marginTop: 30, padding: 16, background: "#fef3c7", borderRadius: 8, borderLeft: "4px solid #f59e0b" }}>
-              <p style={{ fontSize: 13, color: "#92400e", margin: 0, fontWeight: 600 }}>💡 TIP: Export CSV every Friday, save to Google Drive = disaster recovery ready!</p>
+            <div style={{ marginTop: 30, padding: 16, background: `${COLORS.lime}30`, borderRadius: 8, borderLeft: `4px solid ${COLORS.lime}` }}>
+              <p style={{ fontSize: 13, color: COLORS.darkBlue, margin: 0, fontWeight: 600 }}>💡 TIP: Export CSV every Friday, save to Google Drive = disaster recovery ready!</p>
             </div>
           </div>
         </div>
@@ -627,21 +694,21 @@ export default function App() {
   // LEAD TIMES PANEL
   if (userMode === "adminPanel" && adminPanel === "leadTimes") {
     return (
-      <div style={{ fontFamily: "'Inter', system-ui, sans-serif", background: "#f8f8f6", minHeight: "100vh", padding: "40px 20px" }}>
+      <div style={{ fontFamily: "'Inter', system-ui, sans-serif", background: COLORS.light, minHeight: "100vh", padding: "40px 20px" }}>
         <div style={{ maxWidth: 600, margin: "0 auto" }}>
-          <button onClick={() => setAdminPanel(null)} style={{ marginBottom: 20, padding: "10px 20px", background: "#1a1a1a", color: "#fff", border: "none", borderRadius: 6, cursor: "pointer", fontSize: 14, fontWeight: 600 }}>← Back</button>
-          <div style={{ background: "#fff", padding: 40, borderRadius: 12, border: "2px solid #c8a96e" }}>
-            <h1 style={{ fontSize: 28, fontWeight: 700, marginBottom: 30, color: "#1a1a1a" }}>⏱️ EDIT LEAD TIMES</h1>
-            <button onClick={addLeadTime} style={{ width: "100%", marginBottom: 20, padding: "12px 20px", background: "#c8a96e", color: "#fff", border: "none", borderRadius: 8, cursor: "pointer", fontSize: 13, fontWeight: 600 }}>+ ADD LEAD TIME</button>
+          <button onClick={() => setAdminPanel(null)} style={{ marginBottom: 20, padding: "10px 20px", background: COLORS.darkBlue, color: COLORS.white, border: "none", borderRadius: 6, cursor: "pointer", fontSize: 14, fontWeight: 600 }}>← Back</button>
+          <div style={{ background: COLORS.white, padding: 40, borderRadius: 12, border: `2px solid ${COLORS.lime}` }}>
+            <h1 style={{ fontSize: 28, fontWeight: 700, marginBottom: 30, color: COLORS.darkBlue }}>⏱️ EDIT LEAD TIMES</h1>
+            <button onClick={addLeadTime} style={{ width: "100%", marginBottom: 20, padding: "12px 20px", background: COLORS.lime, color: COLORS.darkBlue, border: "none", borderRadius: 8, cursor: "pointer", fontSize: 13, fontWeight: 600 }}>+ ADD LEAD TIME</button>
             {leadTimes.map(lt => (
-              <div key={lt.id} style={{ padding: 16, background: "#f5f5f5", borderRadius: 8, marginBottom: 12, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <div key={lt.id} style={{ padding: 16, background: COLORS.light, borderRadius: 8, marginBottom: 12, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                 <div>
-                  <div style={{ fontSize: 18, fontWeight: 700, color: "#1a1a1a" }}>{lt.label}</div>
-                  <div style={{ fontSize: 13, color: "#666" }}>{lt.sub}</div>
+                  <div style={{ fontSize: 18, fontWeight: 700, color: COLORS.text }}>{lt.label}</div>
+                  <div style={{ fontSize: 13, color: COLORS.gray }}>{lt.sub}</div>
                 </div>
                 <div style={{ display: "flex", gap: 8 }}>
-                  <button onClick={() => editLeadTime(lt.id)} style={{ padding: "8px 16px", background: "#c8a96e", color: "#fff", border: "none", borderRadius: 6, cursor: "pointer", fontWeight: 600, fontSize: 12 }}>EDIT</button>
-                  <button onClick={() => deleteLeadTime(lt.id)} style={{ padding: "8px 16px", background: "#ff5555", color: "#fff", border: "none", borderRadius: 6, cursor: "pointer", fontWeight: 600, fontSize: 12 }}>DELETE</button>
+                  <button onClick={() => editLeadTime(lt.id)} style={{ padding: "8px 16px", background: COLORS.lime, color: COLORS.darkBlue, border: "none", borderRadius: 6, cursor: "pointer", fontWeight: 600, fontSize: 12 }}>EDIT</button>
+                  <button onClick={() => deleteLeadTime(lt.id)} style={{ padding: "8px 16px", background: "#ff5555", color: COLORS.white, border: "none", borderRadius: 6, cursor: "pointer", fontWeight: 600, fontSize: 12 }}>DELETE</button>
                 </div>
               </div>
             ))}
@@ -654,20 +721,20 @@ export default function App() {
   // PRICE TIERS PANEL
   if (userMode === "adminPanel" && adminPanel === "priceTiers") {
     return (
-      <div style={{ fontFamily: "'Inter', system-ui, sans-serif", background: "#f8f8f6", minHeight: "100vh", padding: "40px 20px" }}>
+      <div style={{ fontFamily: "'Inter', system-ui, sans-serif", background: COLORS.light, minHeight: "100vh", padding: "40px 20px" }}>
         <div style={{ maxWidth: 600, margin: "0 auto" }}>
-          <button onClick={() => setAdminPanel(null)} style={{ marginBottom: 20, padding: "10px 20px", background: "#1a1a1a", color: "#fff", border: "none", borderRadius: 6, cursor: "pointer", fontSize: 14, fontWeight: 600 }}>← Back</button>
-          <div style={{ background: "#fff", padding: 40, borderRadius: 12, border: "2px solid #c8a96e" }}>
-            <h1 style={{ fontSize: 28, fontWeight: 700, marginBottom: 30, color: "#1a1a1a" }}>💰 EDIT PRICE TIERS</h1>
+          <button onClick={() => setAdminPanel(null)} style={{ marginBottom: 20, padding: "10px 20px", background: COLORS.darkBlue, color: COLORS.white, border: "none", borderRadius: 6, cursor: "pointer", fontSize: 14, fontWeight: 600 }}>← Back</button>
+          <div style={{ background: COLORS.white, padding: 40, borderRadius: 12, border: `2px solid ${COLORS.purple}` }}>
+            <h1 style={{ fontSize: 28, fontWeight: 700, marginBottom: 30, color: COLORS.darkBlue }}>💰 EDIT PRICE TIERS</h1>
             {priceTiers.map(pt => (
-              <div key={pt.label} style={{ padding: 16, background: "#f5f5f5", borderRadius: 8, marginBottom: 12, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <div key={pt.label} style={{ padding: 16, background: COLORS.light, borderRadius: 8, marginBottom: 12, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                 <div>
-                  <div style={{ fontSize: 18, fontWeight: 700, color: "#1a1a1a" }}>{pt.label}</div>
-                  <div style={{ fontSize: 13, color: "#666" }}>RM{pt.min} – {pt.max === Infinity ? "∞" : "RM" + pt.max}</div>
+                  <div style={{ fontSize: 18, fontWeight: 700, color: COLORS.text }}>{pt.label}</div>
+                  <div style={{ fontSize: 13, color: COLORS.gray }}>RM{pt.min} – {pt.max === Infinity ? "∞" : "RM" + pt.max}</div>
                 </div>
                 <div style={{ display: "flex", gap: 8 }}>
-                  <button onClick={() => editPriceTier(pt.label)} style={{ padding: "8px 16px", background: "#c8a96e", color: "#fff", border: "none", borderRadius: 6, cursor: "pointer", fontWeight: 600, fontSize: 12 }}>EDIT</button>
-                  <button onClick={() => deletePriceTier(pt.label)} style={{ padding: "8px 16px", background: "#ff5555", color: "#fff", border: "none", borderRadius: 6, cursor: "pointer", fontWeight: 600, fontSize: 12 }}>DELETE</button>
+                  <button onClick={() => editPriceTier(pt.label)} style={{ padding: "8px 16px", background: COLORS.purple, color: COLORS.white, border: "none", borderRadius: 6, cursor: "pointer", fontWeight: 600, fontSize: 12 }}>EDIT</button>
+                  <button onClick={() => deletePriceTier(pt.label)} style={{ padding: "8px 16px", background: "#ff5555", color: COLORS.white, border: "none", borderRadius: 6, cursor: "pointer", fontWeight: 600, fontSize: 12 }}>DELETE</button>
                 </div>
               </div>
             ))}
@@ -680,18 +747,18 @@ export default function App() {
   // CATEGORIES PANEL
   if (userMode === "adminPanel" && adminPanel === "categories") {
     return (
-      <div style={{ fontFamily: "'Inter', system-ui, sans-serif", background: "#f8f8f6", minHeight: "100vh", padding: "40px 20px" }}>
+      <div style={{ fontFamily: "'Inter', system-ui, sans-serif", background: COLORS.light, minHeight: "100vh", padding: "40px 20px" }}>
         <div style={{ maxWidth: 600, margin: "0 auto" }}>
-          <button onClick={() => setAdminPanel(null)} style={{ marginBottom: 20, padding: "10px 20px", background: "#1a1a1a", color: "#fff", border: "none", borderRadius: 6, cursor: "pointer", fontSize: 14, fontWeight: 600 }}>← Back</button>
-          <div style={{ background: "#fff", padding: 40, borderRadius: 12, border: "2px solid #c8a96e" }}>
-            <h1 style={{ fontSize: 28, fontWeight: 700, marginBottom: 30, color: "#1a1a1a" }}>📂 EDIT CATEGORIES</h1>
-            <button onClick={addCategory} style={{ width: "100%", marginBottom: 20, padding: "12px 20px", background: "#c8a96e", color: "#fff", border: "none", borderRadius: 8, cursor: "pointer", fontSize: 13, fontWeight: 600 }}>+ ADD CATEGORY</button>
+          <button onClick={() => setAdminPanel(null)} style={{ marginBottom: 20, padding: "10px 20px", background: COLORS.darkBlue, color: COLORS.white, border: "none", borderRadius: 6, cursor: "pointer", fontSize: 14, fontWeight: 600 }}>← Back</button>
+          <div style={{ background: COLORS.white, padding: 40, borderRadius: 12, border: `2px solid ${COLORS.primary}` }}>
+            <h1 style={{ fontSize: 28, fontWeight: 700, marginBottom: 30, color: COLORS.darkBlue }}>📂 EDIT CATEGORIES</h1>
+            <button onClick={addCategory} style={{ width: "100%", marginBottom: 20, padding: "12px 20px", background: COLORS.primary, color: COLORS.darkBlue, border: "none", borderRadius: 8, cursor: "pointer", fontSize: 13, fontWeight: 600 }}>+ ADD CATEGORY</button>
             {categories.map(cat => (
-              <div key={cat} style={{ padding: 16, background: "#f5f5f5", borderRadius: 8, marginBottom: 12, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                <div style={{ fontSize: 18, fontWeight: 700, color: "#1a1a1a" }}>{cat}</div>
+              <div key={cat} style={{ padding: 16, background: COLORS.light, borderRadius: 8, marginBottom: 12, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <div style={{ fontSize: 18, fontWeight: 700, color: COLORS.text }}>{cat}</div>
                 <div style={{ display: "flex", gap: 8 }}>
-                  <button onClick={() => editCategory(cat)} style={{ padding: "8px 16px", background: "#c8a96e", color: "#fff", border: "none", borderRadius: 6, cursor: "pointer", fontWeight: 600, fontSize: 12 }}>EDIT</button>
-                  <button onClick={() => deleteCategory(cat)} style={{ padding: "8px 16px", background: "#ff5555", color: "#fff", border: "none", borderRadius: 6, cursor: "pointer", fontWeight: 600, fontSize: 12 }}>DELETE</button>
+                  <button onClick={() => editCategory(cat)} style={{ padding: "8px 16px", background: COLORS.primary, color: COLORS.darkBlue, border: "none", borderRadius: 6, cursor: "pointer", fontWeight: 600, fontSize: 12 }}>EDIT</button>
+                  <button onClick={() => deleteCategory(cat)} style={{ padding: "8px 16px", background: "#ff5555", color: COLORS.white, border: "none", borderRadius: 6, cursor: "pointer", fontWeight: 600, fontSize: 12 }}>DELETE</button>
                 </div>
               </div>
             ))}
@@ -704,75 +771,75 @@ export default function App() {
   // ADD PRODUCT PANEL
   if (userMode === "adminPanel" && adminPanel === "addProduct") {
     return (
-      <div style={{ fontFamily: "'Inter', system-ui, sans-serif", background: "#f8f8f6", minHeight: "100vh", padding: "40px 20px" }}>
+      <div style={{ fontFamily: "'Inter', system-ui, sans-serif", background: COLORS.light, minHeight: "100vh", padding: "40px 20px" }}>
         <div style={{ maxWidth: 800, margin: "0 auto" }}>
-          <button onClick={() => setAdminPanel(null)} style={{ marginBottom: 20, padding: "10px 20px", background: "#1a1a1a", color: "#fff", border: "none", borderRadius: 6, cursor: "pointer", fontSize: 14, fontWeight: 600 }}>← Back</button>
-          <div style={{ background: "#fff", padding: 40, borderRadius: 12, border: "2px solid #c8a96e" }}>
-            <h1 style={{ fontSize: 28, fontWeight: 700, marginBottom: 30, color: "#1a1a1a" }}>{editingId ? "EDIT PRODUCT" : "ADD PRODUCT"}</h1>
+          <button onClick={() => setAdminPanel(null)} style={{ marginBottom: 20, padding: "10px 20px", background: COLORS.darkBlue, color: COLORS.white, border: "none", borderRadius: 6, cursor: "pointer", fontSize: 14, fontWeight: 600 }}>← Back</button>
+          <div style={{ background: COLORS.white, padding: 40, borderRadius: 12, border: `2px solid ${COLORS.primary}` }}>
+            <h1 style={{ fontSize: 28, fontWeight: 700, marginBottom: 30, color: COLORS.darkBlue }}>{editingId ? "EDIT PRODUCT" : "ADD PRODUCT"}</h1>
             <form onSubmit={handleAddOrEditProduct} style={{ display: "grid", gap: 20 }}>
-              <input type="text" value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} placeholder="Product name *" style={{ padding: "12px 16px", fontSize: 14, border: "1.5px solid #ddd", borderRadius: 8, fontFamily: "inherit" }} />
+              <input type="text" value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} placeholder="Product name *" style={{ padding: "12px 16px", fontSize: 14, border: `1.5px solid ${COLORS.light}`, borderRadius: 8, fontFamily: "inherit" }} />
               
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
-                <select value={formData.category} onChange={e => setFormData({...formData, category: e.target.value})} style={{ padding: "12px 16px", fontSize: 14, border: "1.5px solid #ddd", borderRadius: 8, fontFamily: "inherit" }}>
+                <select value={formData.category} onChange={e => setFormData({...formData, category: e.target.value})} style={{ padding: "12px 16px", fontSize: 14, border: `1.5px solid ${COLORS.light}`, borderRadius: 8, fontFamily: "inherit" }}>
                   {categories.map(cat => <option key={cat} value={cat}>{cat}</option>)}
                 </select>
-                <input type="number" value={formData.price} onChange={e => setFormData({...formData, price: e.target.value})} placeholder="Base Price (RM) *" style={{ padding: "12px 16px", fontSize: 14, border: "1.5px solid #ddd", borderRadius: 8, fontFamily: "inherit" }} />
+                <input type="number" value={formData.price} onChange={e => setFormData({...formData, price: e.target.value})} placeholder="Base Price (RM) *" style={{ padding: "12px 16px", fontSize: 14, border: `1.5px solid ${COLORS.light}`, borderRadius: 8, fontFamily: "inherit" }} />
               </div>
 
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
-                <input type="text" value={formData.link} onChange={e => setFormData({...formData, link: e.target.value})} placeholder="Link (optional)" style={{ padding: "12px 16px", fontSize: 14, border: "1.5px solid #ddd", borderRadius: 8, fontFamily: "inherit" }} />
-                <input type="text" value={formData.size} onChange={e => setFormData({...formData, size: e.target.value})} placeholder="Size (optional)" style={{ padding: "12px 16px", fontSize: 14, border: "1.5px solid #ddd", borderRadius: 8, fontFamily: "inherit" }} />
+                <input type="text" value={formData.link} onChange={e => setFormData({...formData, link: e.target.value})} placeholder="Link (optional)" style={{ padding: "12px 16px", fontSize: 14, border: `1.5px solid ${COLORS.light}`, borderRadius: 8, fontFamily: "inherit" }} />
+                <input type="text" value={formData.size} onChange={e => setFormData({...formData, size: e.target.value})} placeholder="Size (optional)" style={{ padding: "12px 16px", fontSize: 14, border: `1.5px solid ${COLORS.light}`, borderRadius: 8, fontFamily: "inherit" }} />
               </div>
 
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
-                <select value={formData.leadTime} onChange={e => setFormData({...formData, leadTime: e.target.value})} style={{ padding: "12px 16px", fontSize: 14, border: "1.5px solid #ddd", borderRadius: 8, fontFamily: "inherit" }}>
+                <select value={formData.leadTime} onChange={e => setFormData({...formData, leadTime: e.target.value})} style={{ padding: "12px 16px", fontSize: 14, border: `1.5px solid ${COLORS.light}`, borderRadius: 8, fontFamily: "inherit" }}>
                   {leadTimes.map(lt => <option key={lt.id} value={lt.id}>{lt.label} ({lt.sub})</option>)}
                 </select>
-                <input type="number" value={formData.moq} onChange={e => setFormData({...formData, moq: e.target.value})} placeholder="MOQ *" style={{ padding: "12px 16px", fontSize: 14, border: "1.5px solid #ddd", borderRadius: 8, fontFamily: "inherit" }} />
+                <input type="number" value={formData.moq} onChange={e => setFormData({...formData, moq: e.target.value})} placeholder="MOQ *" style={{ padding: "12px 16px", fontSize: 14, border: `1.5px solid ${COLORS.light}`, borderRadius: 8, fontFamily: "inherit" }} />
               </div>
 
               <div>
-                <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: "#666", marginBottom: 8 }}>Image</label>
-                <div onDragEnter={handleDrag} onDragLeave={handleDrag} onDragOver={handleDrag} onDrop={handleDrop} style={{ border: dragActive ? "2px solid #c8a96e" : "2px dashed #ddd", borderRadius: 8, padding: "30px", textAlign: "center", background: dragActive ? "#f9f7f3" : "#fafafa", cursor: "pointer" }}>
+                <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: COLORS.gray, marginBottom: 8 }}>Image</label>
+                <div onDragEnter={handleDrag} onDragLeave={handleDrag} onDragOver={handleDrag} onDrop={handleDrop} style={{ border: dragActive ? `2px solid ${COLORS.primary}` : `2px dashed ${COLORS.light}`, borderRadius: 8, padding: "30px", textAlign: "center", background: dragActive ? `${COLORS.primary}10` : COLORS.light, cursor: "pointer" }}>
                   <input type="file" accept="image/*" onChange={e => handleImageUpload(e.target.files?.[0])} style={{ display: "none" }} id="imageUploadInput" />
                   <label htmlFor="imageUploadInput" style={{ cursor: "pointer", fontSize: 14 }}>Drag or click to upload</label>
                 </div>
               </div>
 
               <div>
-                <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: "#666", marginBottom: 10 }}>Branding *</label>
+                <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: COLORS.gray, marginBottom: 10 }}>Branding *</label>
                 <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
                   {BRANDING_OPTIONS.map(brand => (
-                    <button key={brand} type="button" onClick={() => toggleBranding(brand)} style={{ padding: "8px 14px", borderRadius: 20, fontSize: 12, fontWeight: 500, cursor: "pointer", border: formData.branding.includes(brand) ? "1.5px solid #c8a96e" : "1px solid #ddd", background: formData.branding.includes(brand) ? "#c8a96e" : "#fff", color: formData.branding.includes(brand) ? "#fff" : "#444" }}>{brand}</button>
+                    <button key={brand} type="button" onClick={() => toggleBranding(brand)} style={{ padding: "8px 14px", borderRadius: 20, fontSize: 12, fontWeight: 500, cursor: "pointer", border: formData.branding.includes(brand) ? `1.5px solid ${COLORS.primary}` : `1px solid ${COLORS.light}`, background: formData.branding.includes(brand) ? COLORS.primary : COLORS.white, color: formData.branding.includes(brand) ? COLORS.darkBlue : COLORS.gray }}>{brand}</button>
                   ))}
                 </div>
               </div>
 
-              <div style={{ padding: 20, background: "#f9f7f3", borderRadius: 8 }}>
-                <h3 style={{ fontSize: 14, fontWeight: 700, color: "#1a1a1a", marginBottom: 16 }}>💰 Pricing Tiers (Optional)</h3>
+              <div style={{ padding: 20, background: COLORS.light, borderRadius: 8 }}>
+                <h3 style={{ fontSize: 14, fontWeight: 700, color: COLORS.text, marginBottom: 16 }}>💰 Pricing Tiers (Optional)</h3>
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 12 }}>
-                  <input type="number" value={newTierMoq} onChange={e => setNewTierMoq(e.target.value)} placeholder="MOQ" style={{ padding: "10px", fontSize: 13, border: "1px solid #ddd", borderRadius: 6, fontFamily: "inherit" }} />
-                  <input type="number" value={newTierPrice} onChange={e => setNewTierPrice(e.target.value)} placeholder="Price (RM)" style={{ padding: "10px", fontSize: 13, border: "1px solid #ddd", borderRadius: 6, fontFamily: "inherit" }} />
+                  <input type="number" value={newTierMoq} onChange={e => setNewTierMoq(e.target.value)} placeholder="MOQ" style={{ padding: "10px", fontSize: 13, border: `1px solid ${COLORS.light}`, borderRadius: 6, fontFamily: "inherit" }} />
+                  <input type="number" value={newTierPrice} onChange={e => setNewTierPrice(e.target.value)} placeholder="Price (RM)" style={{ padding: "10px", fontSize: 13, border: `1px solid ${COLORS.light}`, borderRadius: 6, fontFamily: "inherit" }} />
                 </div>
-                <button type="button" onClick={addPricingTier} style={{ width: "100%", padding: "10px", background: "#c8a96e", color: "#fff", border: "none", borderRadius: 6, fontSize: 13, fontWeight: 600, cursor: "pointer", marginBottom: 16 }}>+ Add Tier</button>
+                <button type="button" onClick={addPricingTier} style={{ width: "100%", padding: "10px", background: COLORS.primary, color: COLORS.darkBlue, border: "none", borderRadius: 6, fontSize: 13, fontWeight: 600, cursor: "pointer", marginBottom: 16 }}>+ Add Tier</button>
 
                 {formData.pricingTiers.length > 0 && (
-                  <div style={{ background: "#fff", borderRadius: 6, overflow: "hidden" }}>
+                  <div style={{ background: COLORS.white, borderRadius: 6, overflow: "hidden" }}>
                     <table style={{ width: "100%", borderCollapse: "collapse" }}>
                       <thead>
-                        <tr style={{ background: "#f0f0f0" }}>
-                          <th style={{ padding: "10px", textAlign: "left", fontSize: 12, fontWeight: 600, borderBottom: "1px solid #ddd" }}>MOQ</th>
-                          <th style={{ padding: "10px", textAlign: "left", fontSize: 12, fontWeight: 600, borderBottom: "1px solid #ddd" }}>Price (RM)</th>
-                          <th style={{ padding: "10px", textAlign: "left", fontSize: 12, fontWeight: 600, borderBottom: "1px solid #ddd" }}>Action</th>
+                        <tr style={{ background: COLORS.light }}>
+                          <th style={{ padding: "10px", textAlign: "left", fontSize: 12, fontWeight: 600, borderBottom: `1px solid ${COLORS.light}` }}>MOQ</th>
+                          <th style={{ padding: "10px", textAlign: "left", fontSize: 12, fontWeight: 600, borderBottom: `1px solid ${COLORS.light}` }}>Price (RM)</th>
+                          <th style={{ padding: "10px", textAlign: "left", fontSize: 12, fontWeight: 600, borderBottom: `1px solid ${COLORS.light}` }}>Action</th>
                         </tr>
                       </thead>
                       <tbody>
                         {formData.pricingTiers.map((tier, idx) => (
-                          <tr key={idx} style={{ borderBottom: "1px solid #eee" }}>
+                          <tr key={idx} style={{ borderBottom: `1px solid ${COLORS.light}` }}>
                             <td style={{ padding: "10px", fontSize: 13 }}>{tier.moq}</td>
                             <td style={{ padding: "10px", fontSize: 13 }}>{tier.price}</td>
                             <td style={{ padding: "10px" }}>
-                              <button type="button" onClick={() => removePricingTier(idx)} style={{ padding: "4px 8px", background: "#ff5555", color: "#fff", border: "none", borderRadius: 4, fontSize: 11, cursor: "pointer" }}>Remove</button>
+                              <button type="button" onClick={() => removePricingTier(idx)} style={{ padding: "4px 8px", background: "#ff5555", color: COLORS.white, border: "none", borderRadius: 4, fontSize: 11, cursor: "pointer" }}>Remove</button>
                             </td>
                           </tr>
                         ))}
@@ -783,8 +850,8 @@ export default function App() {
               </div>
 
               <div style={{ display: "flex", gap: 12 }}>
-                <button type="submit" style={{ flex: 1, padding: "14px 24px", background: "#c8a96e", color: "#fff", border: "none", borderRadius: 8, fontSize: 14, fontWeight: 600, cursor: "pointer" }}>{editingId ? "UPDATE" : "ADD"}</button>
-                {editingId && <button type="button" onClick={() => { setEditingId(null); resetForm(); }} style={{ flex: 1, padding: "14px 24px", background: "#888", color: "#fff", border: "none", borderRadius: 8, fontSize: 14, fontWeight: 600, cursor: "pointer" }}>CANCEL</button>}
+                <button type="submit" style={{ flex: 1, padding: "14px 24px", background: COLORS.primary, color: COLORS.darkBlue, border: "none", borderRadius: 8, fontSize: 14, fontWeight: 600, cursor: "pointer" }}>{editingId ? "UPDATE" : "ADD"}</button>
+                {editingId && <button type="button" onClick={() => { setEditingId(null); resetForm(); }} style={{ flex: 1, padding: "14px 24px", background: COLORS.gray, color: COLORS.white, border: "none", borderRadius: 8, fontSize: 14, fontWeight: 600, cursor: "pointer" }}>CANCEL</button>}
               </div>
             </form>
           </div>
@@ -795,49 +862,51 @@ export default function App() {
 
   // CATALOG VIEW
   return (
-    <div style={{ fontFamily: "'Inter', system-ui, sans-serif", background: "#f8f8f6", minHeight: "100vh", padding: "0 0 60px" }}>
-      <div style={{ background: "#1a1a1a", padding: "24px 32px", borderBottom: "3px solid #c8a96e" }}>
+    <div style={{ fontFamily: "'Inter', system-ui, sans-serif", background: COLORS.light, minHeight: "100vh", padding: "0 0 60px" }}>
+      <ProductDetailPanel product={selectedProduct} onClose={() => setSelectedProduct(null)} />
+
+      <div style={{ background: COLORS.darkBlue, padding: "24px 32px", borderBottom: `3px solid ${COLORS.primary}` }}>
         <div style={{ maxWidth: 1200, margin: "0 auto", display: "flex", justifyContent: "space-between", alignItems: "center", gap: 16 }}>
           <div>
-            <h1 style={{ margin: 0, fontSize: 28, fontWeight: 700, color: "#fff" }}>Product Catalog</h1>
-            <p style={{ margin: "6px 0 0", color: "#aaa", fontSize: 12 }}>🔒 Secure Access</p>
+            <h1 style={{ margin: 0, fontSize: 28, fontWeight: 700, color: COLORS.primary }}>Product Catalog</h1>
+            <p style={{ margin: "6px 0 0", color: COLORS.light, fontSize: 12 }}>🔒 Secure Access</p>
           </div>
-          <button onClick={handleLogout} style={{ padding: "10px 20px", background: "#666", color: "#fff", border: "none", borderRadius: 6, fontSize: 12, fontWeight: 600, cursor: "pointer" }}>🔒 Logout</button>
+          <button onClick={handleLogout} style={{ padding: "10px 20px", background: COLORS.gray, color: COLORS.white, border: "none", borderRadius: 6, fontSize: 12, fontWeight: 600, cursor: "pointer" }}>🔒 Logout</button>
         </div>
       </div>
 
       <div style={{ maxWidth: 1200, margin: "0 auto", padding: "0 24px" }}>
         <div style={{ paddingTop: 24, paddingBottom: 4 }}>
-          <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search products..." style={{ width: "100%", boxSizing: "border-box", padding: "11px 16px", fontSize: 14, border: "1.5px solid #ddd", borderRadius: 8, background: "#fff" }} />
+          <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search products..." style={{ width: "100%", boxSizing: "border-box", padding: "11px 16px", fontSize: 14, border: `1.5px solid ${COLORS.light}`, borderRadius: 8, background: COLORS.white }} />
         </div>
 
         <div style={{ display: "flex", gap: 32, marginTop: 20, flexWrap: "wrap" }}>
           <div>
-            <div style={{ fontSize: 11, fontWeight: 700, color: "#888", textTransform: "uppercase", marginBottom: 10 }}>Category</div>
+            <div style={{ fontSize: 11, fontWeight: 700, color: COLORS.gray, textTransform: "uppercase", marginBottom: 10 }}>Category</div>
             <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
               {categories.map(cat => (
-                <button key={cat} onClick={() => setSelectedCategory(selectedCategory === cat ? null : cat)} style={{ padding: "6px 13px", borderRadius: 20, fontSize: 12, fontWeight: 500, cursor: "pointer", border: selectedCategory === cat ? "1.5px solid #1a1a1a" : "1.5px solid #ddd", background: selectedCategory === cat ? "#1a1a1a" : "#fff", color: selectedCategory === cat ? "#fff" : "#444" }}>{cat}</button>
+                <button key={cat} onClick={() => setSelectedCategory(selectedCategory === cat ? null : cat)} style={{ padding: "6px 13px", borderRadius: 20, fontSize: 12, fontWeight: 500, cursor: "pointer", border: selectedCategory === cat ? `1.5px solid ${COLORS.darkBlue}` : `1.5px solid ${COLORS.light}`, background: selectedCategory === cat ? COLORS.darkBlue : COLORS.white, color: selectedCategory === cat ? COLORS.primary : COLORS.gray }}>{cat}</button>
               ))}
             </div>
           </div>
 
           <div>
-            <div style={{ fontSize: 11, fontWeight: 700, color: "#888", textTransform: "uppercase", marginBottom: 10 }}>Price</div>
+            <div style={{ fontSize: 11, fontWeight: 700, color: COLORS.gray, textTransform: "uppercase", marginBottom: 10 }}>Price</div>
             <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
               {priceTiers.map(tier => (
-                <button key={tier.label} onClick={() => setSelectedPrice(selectedPrice === tier.label ? null : tier.label)} style={{ padding: "6px 13px", borderRadius: 20, fontSize: 12, fontWeight: 500, cursor: "pointer", border: selectedPrice === tier.label ? "1.5px solid #c8a96e" : "1.5px solid #ddd", background: selectedPrice === tier.label ? "#c8a96e" : "#fff", color: selectedPrice === tier.label ? "#fff" : "#444" }}>{tier.label}</button>
+                <button key={tier.label} onClick={() => setSelectedPrice(selectedPrice === tier.label ? null : tier.label)} style={{ padding: "6px 13px", borderRadius: 20, fontSize: 12, fontWeight: 500, cursor: "pointer", border: selectedPrice === tier.label ? `1.5px solid ${COLORS.primary}` : `1.5px solid ${COLORS.light}`, background: selectedPrice === tier.label ? COLORS.primary : COLORS.white, color: selectedPrice === tier.label ? COLORS.darkBlue : COLORS.gray }}>{tier.label}</button>
               ))}
             </div>
           </div>
 
           <div>
-            <div style={{ fontSize: 11, fontWeight: 700, color: "#888", textTransform: "uppercase", marginBottom: 10 }}>Lead Time</div>
+            <div style={{ fontSize: 11, fontWeight: 700, color: COLORS.gray, textTransform: "uppercase", marginBottom: 10 }}>Lead Time</div>
             <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
               {leadTimes.map(lt => {
-                const c = LEAD_COLORS[lt.id] || { bg: "#f0f0f0", text: "#666", dot: "#999" };
+                const c = LEAD_COLORS[lt.id] || { bg: COLORS.light, text: COLORS.gray, badge: COLORS.gray };
                 const active = selectedLead === lt.id;
                 return (
-                  <button key={lt.id} onClick={() => setSelectedLead(selectedLead === lt.id ? null : lt.id)} style={{ padding: "6px 13px", borderRadius: 20, fontSize: 12, fontWeight: 500, cursor: "pointer", border: active ? `1.5px solid ${c.dot}` : "1.5px solid #ddd", background: active ? c.bg : "#fff", color: active ? c.text : "#444" }}>{lt.sub}</button>
+                  <button key={lt.id} onClick={() => setSelectedLead(selectedLead === lt.id ? null : lt.id)} style={{ padding: "6px 13px", borderRadius: 20, fontSize: 12, fontWeight: 500, cursor: "pointer", border: active ? `1.5px solid ${c.badge}` : `1.5px solid ${COLORS.light}`, background: active ? c.bg : COLORS.white, color: active ? c.text : COLORS.gray }}>{lt.sub}</button>
                 );
               })}
             </div>
@@ -846,71 +915,53 @@ export default function App() {
 
         <div style={{ marginTop: 20, display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap" }}>
           <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-            {selectedCategory && <span onClick={() => setSelectedCategory(null)} style={{ display: "inline-flex", alignItems: "center", gap: 5, background: "#1a1a1a", color: "#fff", borderRadius: 20, padding: "4px 10px", fontSize: 12, cursor: "pointer" }}>{selectedCategory} ×</span>}
-            {selectedPrice && <span onClick={() => setSelectedPrice(null)} style={{ display: "inline-flex", alignItems: "center", gap: 5, background: "#1a1a1a", color: "#fff", borderRadius: 20, padding: "4px 10px", fontSize: 12, cursor: "pointer" }}>{selectedPrice} ×</span>}
-            {selectedLead && <span onClick={() => setSelectedLead(null)} style={{ display: "inline-flex", alignItems: "center", gap: 5, background: "#1a1a1a", color: "#fff", borderRadius: 20, padding: "4px 10px", fontSize: 12, cursor: "pointer" }}>{leadTimes.find(lt => lt.id === selectedLead)?.sub} ×</span>}
-            {(selectedCategory || selectedPrice || selectedLead) && <span onClick={clearAll} style={{ fontSize: 12, color: "#c8a96e", cursor: "pointer", fontWeight: 600 }}>Clear</span>}
+            {selectedCategory && <span onClick={() => setSelectedCategory(null)} style={{ display: "inline-flex", alignItems: "center", gap: 5, background: COLORS.darkBlue, color: COLORS.white, borderRadius: 20, padding: "4px 10px", fontSize: 12, cursor: "pointer" }}>{selectedCategory} ×</span>}
+            {selectedPrice && <span onClick={() => setSelectedPrice(null)} style={{ display: "inline-flex", alignItems: "center", gap: 5, background: COLORS.darkBlue, color: COLORS.white, borderRadius: 20, padding: "4px 10px", fontSize: 12, cursor: "pointer" }}>{selectedPrice} ×</span>}
+            {selectedLead && <span onClick={() => setSelectedLead(null)} style={{ display: "inline-flex", alignItems: "center", gap: 5, background: COLORS.darkBlue, color: COLORS.white, borderRadius: 20, padding: "4px 10px", fontSize: 12, cursor: "pointer" }}>{leadTimes.find(lt => lt.id === selectedLead)?.sub} ×</span>}
+            {(selectedCategory || selectedPrice || selectedLead) && <span onClick={clearAll} style={{ fontSize: 12, color: COLORS.primary, cursor: "pointer", fontWeight: 600 }}>Clear</span>}
           </div>
-          <div style={{ fontSize: 13, color: "#888" }}><strong>{filtered.length}</strong> products</div>
+          <div style={{ fontSize: 13, color: COLORS.gray }}><strong>{filtered.length}</strong> products</div>
         </div>
 
-        <div style={{ height: 1, background: "#e5e5e5", margin: "16px 0 24px" }} />
+        <div style={{ height: 1, background: COLORS.light, margin: "16px 0 24px" }} />
 
         {filtered.length === 0 ? (
-          <div style={{ textAlign: "center", padding: "60px 20px", color: "#aaa" }}>
+          <div style={{ textAlign: "center", padding: "60px 20px", color: COLORS.gray }}>
             <div style={{ fontSize: 32, marginBottom: 12 }}>🔍</div>
             <div>No products found</div>
           </div>
         ) : (
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: 16, marginBottom: 40 }}>
             {filtered.map(p => {
-              const lc = LEAD_COLORS[p.leadTime] || { bg: "#f0f0f0", text: "#666", dot: "#999" };
+              const lc = LEAD_COLORS[p.leadTime] || { bg: COLORS.light, text: COLORS.gray, badge: COLORS.gray };
               return (
-                <div key={p.firestoreId} style={{ background: "#fff", borderRadius: 10, padding: "18px 20px", border: "1.5px solid #e8e8e8", overflow: "hidden" }}>
+                <div key={p.firestoreId} onClick={() => setSelectedProduct(p)} style={{ background: COLORS.white, borderRadius: 10, padding: "18px 20px", border: `1.5px solid ${COLORS.light}`, overflow: "hidden", cursor: "pointer", transition: "all 0.3s ease", boxShadow: "0 2px 8px rgba(0,0,0,0.08)" }}>
                   {p.image ? (
-                    <div style={{ width: "calc(100% + 40px)", height: 240, marginLeft: -20, marginTop: -18, marginBottom: 14, background: "#f5f5f5", overflow: "hidden" }}>
+                    <div style={{ width: "calc(100% + 40px)", height: 240, marginLeft: -20, marginTop: -18, marginBottom: 14, background: COLORS.light, overflow: "hidden" }}>
                       <img src={p.image} alt={p.name} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
                     </div>
                   ) : (
-                    <div style={{ width: "calc(100% + 40px)", height: 240, marginLeft: -20, marginTop: -18, marginBottom: 14, background: "#f5f5f5", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 40 }}>📦</div>
+                    <div style={{ width: "calc(100% + 40px)", height: 240, marginLeft: -20, marginTop: -18, marginBottom: 14, background: COLORS.light, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 40 }}>📦</div>
                   )}
-                  <div style={{ fontSize: 10, fontWeight: 700, color: "#aaa", textTransform: "uppercase", marginBottom: 6 }}>{p.category}</div>
-                  <div style={{ fontSize: 15, fontWeight: 700, color: "#1a1a1a", marginBottom: 4 }}>{p.name}</div>
-                  {p.size && <div style={{ fontSize: 12, color: "#666", marginBottom: 10 }}>Size: {p.size}</div>}
+                  <div style={{ fontSize: 10, fontWeight: 700, color: COLORS.gray, textTransform: "uppercase", marginBottom: 6 }}>{p.category}</div>
+                  <div style={{ fontSize: 15, fontWeight: 700, color: COLORS.text, marginBottom: 4 }}>{p.name}</div>
+                  {p.size && <div style={{ fontSize: 12, color: COLORS.gray, marginBottom: 10 }}>Size: {p.size}</div>}
                   <div style={{ display: "flex", alignItems: "baseline", gap: 4, marginBottom: 12 }}>
-                    <span style={{ fontSize: 22, fontWeight: 800, color: "#1a1a1a" }}>RM{p.price}</span>
-                    <span style={{ fontSize: 12, color: "#aaa" }}>/ unit</span>
+                    <span style={{ fontSize: 22, fontWeight: 800, color: COLORS.primary }}>RM{p.price}</span>
+                    <span style={{ fontSize: 12, color: COLORS.gray }}>/ unit</span>
                   </div>
                   <div style={{ display: "inline-flex", alignItems: "center", gap: 5, background: lc.bg, color: lc.text, borderRadius: 6, padding: "4px 9px", fontSize: 11, fontWeight: 600, marginBottom: 12 }}>
-                    <span style={{ width: 6, height: 6, borderRadius: "50%", background: lc.dot }} />
+                    <span style={{ width: 6, height: 6, borderRadius: "50%", background: lc.badge }} />
                     {p.leadLabel}
                   </div>
                   
-                  {p.pricingTiers && p.pricingTiers.length > 0 && (
-                    <div style={{ marginBottom: 12, padding: 10, background: "#f9f7f3", borderRadius: 6 }}>
-                      <div style={{ fontSize: 11, fontWeight: 700, color: "#1a1a1a", marginBottom: 8 }}>💰 Tiered Pricing:</div>
-                      <table style={{ width: "100%", fontSize: 11 }}>
-                        <tbody>
-                          {p.pricingTiers.map((tier, idx) => (
-                            <tr key={idx}>
-                              <td style={{ padding: "3px 0", color: "#666" }}>MOQ {tier.moq}:</td>
-                              <td style={{ padding: "3px 0", textAlign: "right", fontWeight: 600, color: "#1a1a1a" }}>RM{tier.price}</td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  )}
-
-                  <div style={{ height: 1, background: "#f0f0f0", margin: "8px 0" }} />
-                  <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, color: "#777", marginTop: 10, marginBottom: 12 }}>
+                  <div style={{ height: 1, background: COLORS.light, margin: "8px 0" }} />
+                  <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, color: COLORS.gray, marginTop: 10, marginBottom: 6 }}>
                     <span>MOQ: <strong>{p.moq}</strong></span>
                     <span style={{ fontSize: 11 }}>{p.branding}</span>
                   </div>
-                  
-                  {p.link && (
-                    <a href={p.link} target="_blank" rel="noopener noreferrer" style={{ display: "block", padding: "8px 12px", background: "#c8a96e", color: "#fff", border: "none", borderRadius: 4, fontSize: 12, fontWeight: 600, cursor: "pointer", textAlign: "center", textDecoration: "none", marginBottom: 6 }}>View Details →</a>
-                  )}
+
+                  <div style={{ padding: "8px 0", background: COLORS.lime, borderRadius: 6, textAlign: "center", fontSize: 12, fontWeight: 600, color: COLORS.darkBlue }}>Click for Details →</div>
                 </div>
               );
             })}
