@@ -23,7 +23,7 @@ const COLORS = {
   light: "#f1f2f2",
   white: "#fff",
   text: "#1a1a1a",
-};	
+};
 
 const DEFAULT_LEAD_TIMES = [
   { id: "L1", label: "Ready Stock", sub: "1–3 days" },
@@ -74,6 +74,7 @@ export default function App() {
     price: "",
     link: "",
     size: "",
+    material: "",
     leadTime: "L1",
     moq: "",
     image: "",
@@ -212,6 +213,7 @@ export default function App() {
       price: parseInt(formData.price),
       link: formData.link,
       size: formData.size,
+      material: formData.material,
       leadTime: formData.leadTime,
       leadLabel: leadTimes.find(lt => lt.id === formData.leadTime)?.sub,
       moq: parseInt(formData.moq),
@@ -241,6 +243,7 @@ export default function App() {
       price: "",
       link: "",
       size: "",
+      material: "",
       leadTime: "L1",
       moq: "",
       image: "",
@@ -259,6 +262,7 @@ export default function App() {
       price: product.price.toString(),
       link: product.link || "",
       size: product.size || "",
+      material: product.material || "",
       leadTime: product.leadTime,
       moq: product.moq.toString(),
       image: product.image,
@@ -320,12 +324,13 @@ export default function App() {
       return;
     }
 
-    const headers = ["Name", "Category", "Base Price", "Size", "Lead Time", "MOQ", "Link", "Printing"];
+    const headers = ["Name", "Category", "Base Price", "Size", "Material", "Lead Time", "MOQ", "Link", "Printing"];
     const rows = products.map(p => [
       p.name,
       p.category,
       p.price,
       p.size || "",
+      p.material || "",
       p.leadLabel || p.leadTime,
       p.moq,
       p.link || "",
@@ -508,7 +513,8 @@ export default function App() {
             <div style={{ marginBottom: 20 }}>
               <div style={{ fontSize: 10, fontWeight: 700, color: COLORS.gray, textTransform: "uppercase", marginBottom: 6 }}>{product.category}</div>
               <h3 style={{ margin: "0 0 8px", fontSize: 22, fontWeight: 700, color: COLORS.text }}>{product.name}</h3>
-              {product.size && <div style={{ fontSize: 13, color: COLORS.gray, marginBottom: 12 }}>Size: {product.size}</div>}
+              {product.size && <div style={{ fontSize: 13, color: COLORS.gray, marginBottom: 6 }}>Size: {product.size}</div>}
+              {product.material && <div style={{ fontSize: 13, color: COLORS.gray, marginBottom: 12 }}>Material: {product.material}</div>}
             </div>
 
             <div style={{ display: "inline-flex", alignItems: "center", gap: 6, background: lc.bg, color: lc.text, borderRadius: 8, padding: "6px 12px", fontSize: 12, fontWeight: 600, marginBottom: 20 }}>
@@ -518,7 +524,7 @@ export default function App() {
 
             <div style={{ padding: 16, background: COLORS.light, borderRadius: 10, marginBottom: 20 }}>
               <div style={{ fontSize: 11, color: COLORS.gray, fontWeight: 600, marginBottom: 8 }}>PRICE</div>
-              <div style={{ fontSize: 28, fontWeight: 800, color: COLORS.primary }}>RM{product.price}</div>
+              <div style={{ fontSize: 28, fontWeight: 800, color: COLORS.primary }}>RM{parseFloat(product.price).toFixed(2)}</div>
               <div style={{ fontSize: 12, color: COLORS.gray }}>per unit</div>
             </div>
 
@@ -534,7 +540,7 @@ export default function App() {
                   {product.pricingTiers.map((tier, idx) => (
                     <div key={idx} style={{ display: "flex", justifyContent: "space-between", padding: "8px 0", borderBottom: "1px solid #e0e0e0" }}>
                       <span style={{ fontSize: 12, color: COLORS.gray }}>MOQ {tier.moq}+</span>
-                      <span style={{ fontSize: 12, fontWeight: 600, color: COLORS.primary }}>RM{tier.price}</span>
+                      <span style={{ fontSize: 12, fontWeight: 600, color: COLORS.primary }}>RM{parseFloat(tier.price).toFixed(2)}</span>
                     </div>
                   ))}
                 </div>
@@ -656,6 +662,7 @@ export default function App() {
                       <th style={{ padding: "12px", textAlign: "left", fontSize: 12, fontWeight: 700, borderBottom: `2px solid ${COLORS.gray}` }}>Name</th>
                       <th style={{ padding: "12px", textAlign: "left", fontSize: 12, fontWeight: 700, borderBottom: `2px solid ${COLORS.gray}` }}>Category</th>
                       <th style={{ padding: "12px", textAlign: "left", fontSize: 12, fontWeight: 700, borderBottom: `2px solid ${COLORS.gray}` }}>Price</th>
+                      <th style={{ padding: "12px", textAlign: "left", fontSize: 12, fontWeight: 700, borderBottom: `2px solid ${COLORS.gray}` }}>Material</th>
                       <th style={{ padding: "12px", textAlign: "left", fontSize: 12, fontWeight: 700, borderBottom: `2px solid ${COLORS.gray}` }}>MOQ</th>
                       <th style={{ padding: "12px", textAlign: "left", fontSize: 12, fontWeight: 700, borderBottom: `2px solid ${COLORS.gray}` }}>Lead Time</th>
                       <th style={{ padding: "12px", textAlign: "center", fontSize: 12, fontWeight: 700, borderBottom: `2px solid ${COLORS.gray}` }}>Action</th>
@@ -666,7 +673,8 @@ export default function App() {
                       <tr key={p.firestoreId} style={{ borderBottom: `1px solid ${COLORS.light}`, background: idx % 2 === 0 ? COLORS.light : COLORS.white }}>
                         <td style={{ padding: "12px", fontSize: 13, color: COLORS.text, fontWeight: 500 }}>{p.name}</td>
                         <td style={{ padding: "12px", fontSize: 13, color: COLORS.gray }}>{p.category}</td>
-                        <td style={{ padding: "12px", fontSize: 13, color: COLORS.text, fontWeight: 600 }}>RM{p.price}</td>
+                        <td style={{ padding: "12px", fontSize: 13, color: COLORS.text, fontWeight: 600 }}>RM{parseFloat(p.price).toFixed(2)}</td>
+                        <td style={{ padding: "12px", fontSize: 13, color: COLORS.gray }}>{p.material || "—"}</td>
                         <td style={{ padding: "12px", fontSize: 13, color: COLORS.gray }}>{p.moq}</td>
                         <td style={{ padding: "12px", fontSize: 13, color: COLORS.gray }}>{p.leadLabel}</td>
                         <td style={{ padding: "12px", textAlign: "center", display: "flex", gap: 8, justifyContent: "center" }}>
@@ -818,6 +826,8 @@ export default function App() {
                 <input type="text" value={formData.size} onChange={e => setFormData({...formData, size: e.target.value})} placeholder="Size (optional)" style={{ padding: "12px 16px", fontSize: 14, border: `1.5px solid ${COLORS.light}`, borderRadius: 8, fontFamily: "inherit" }} />
               </div>
 
+              <input type="text" value={formData.material} onChange={e => setFormData({...formData, material: e.target.value})} placeholder="Material (e.g., Cotton, Polyester, Stainless Steel, PU Leather)" style={{ padding: "12px 16px", fontSize: 14, border: `1.5px solid ${COLORS.light}`, borderRadius: 8, fontFamily: "inherit" }} />
+
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
                 <select value={formData.leadTime} onChange={e => setFormData({...formData, leadTime: e.target.value})} style={{ padding: "12px 16px", fontSize: 14, border: `1.5px solid ${COLORS.light}`, borderRadius: 8, fontFamily: "inherit" }}>
                   {leadTimes.map(lt => <option key={lt.id} value={lt.id}>{lt.label} ({lt.sub})</option>)}
@@ -864,7 +874,7 @@ export default function App() {
                         {formData.pricingTiers.map((tier, idx) => (
                           <tr key={idx} style={{ borderBottom: `1px solid ${COLORS.light}` }}>
                             <td style={{ padding: "10px", fontSize: 13 }}>{tier.moq}</td>
-                            <td style={{ padding: "10px", fontSize: 13 }}>{tier.price}</td>
+                            <td style={{ padding: "10px", fontSize: 13 }}>RM{parseFloat(tier.price).toFixed(2)}</td>
                             <td style={{ padding: "10px" }}>
                               <button type="button" onClick={() => removePricingTier(idx)} style={{ padding: "4px 8px", background: "#ff5555", color: COLORS.white, border: "none", borderRadius: 4, fontSize: 11, cursor: "pointer" }}>Remove</button>
                             </td>
@@ -972,9 +982,10 @@ export default function App() {
                   )}
                   <div style={{ fontSize: 10, fontWeight: 700, color: COLORS.gray, textTransform: "uppercase", marginBottom: 6 }}>{p.category}</div>
                   <div style={{ fontSize: 15, fontWeight: 700, color: COLORS.text, marginBottom: 4 }}>{p.name}</div>
-                  {p.size && <div style={{ fontSize: 12, color: COLORS.gray, marginBottom: 10 }}>Size: {p.size}</div>}
+                  {p.size && <div style={{ fontSize: 12, color: COLORS.gray, marginBottom: 4 }}>Size: {p.size}</div>}
+                  {p.material && <div style={{ fontSize: 12, color: COLORS.gray, marginBottom: 10 }}>Material: {p.material}</div>}
                   <div style={{ display: "flex", alignItems: "baseline", gap: 4, marginBottom: 12 }}>
-                    <span style={{ fontSize: 22, fontWeight: 800, color: COLORS.primary }}>RM{p.price}</span>
+                    <span style={{ fontSize: 22, fontWeight: 800, color: COLORS.primary }}>RM{parseFloat(p.price).toFixed(2)}</span>
                     <span style={{ fontSize: 12, color: COLORS.gray }}>/ unit</span>
                   </div>
                   <div style={{ display: "inline-flex", alignItems: "center", gap: 5, background: lc.bg, color: lc.text, borderRadius: 6, padding: "4px 9px", fontSize: 11, fontWeight: 600, marginBottom: 12 }}>
