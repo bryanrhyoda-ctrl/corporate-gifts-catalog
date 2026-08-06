@@ -343,7 +343,7 @@ export default function App() {
     }
     const updated = [...categoryList, newName];
     setCategoryList(updated);
-    setDoc(doc(db, "settings", "categories"), { items: updated });
+    setDoc(doc(db, "settings", "categories"), { items: updated }, { merge: true });
     alert("✓ Added!");
   };
 
@@ -356,7 +356,7 @@ export default function App() {
     }
     const updated = categoryList.map(c => c === oldName ? newName : c);
     setCategoryList(updated);
-    setDoc(doc(db, "settings", "categories"), { items: updated });
+    setDoc(doc(db, "settings", "categories"), { items: updated }, { merge: true });
     alert("✓ Updated!");
   };
 
@@ -369,7 +369,7 @@ export default function App() {
     if (window.confirm("Delete this category?")) {
       const updated = categoryList.filter(c => c !== name);
       setCategoryList(updated);
-      setDoc(doc(db, "settings", "categories"), { items: updated });
+      setDoc(doc(db, "settings", "categories"), { items: updated }, { merge: true });
       alert("✓ Deleted!");
     }
   };
@@ -383,7 +383,7 @@ export default function App() {
     const newId = "L" + (leadTimes.length + 1);
     const updated = [...leadTimes, { id: newId, label: newLabel, sub: newSub }];
     setLeadTimes(updated);
-    setDoc(doc(db, "settings", "leadTimes"), { items: updated });
+    setDoc(doc(db, "settings", "leadTimes"), { items: updated }, { merge: true });
     alert("✓ Added!");
   };
 
@@ -396,7 +396,7 @@ export default function App() {
     
     const updated = leadTimes.map(l => l.id === id ? { id, label: newLabel, sub: newSub } : l);
     setLeadTimes(updated);
-    setDoc(doc(db, "settings", "leadTimes"), { items: updated });
+    setDoc(doc(db, "settings", "leadTimes"), { items: updated }, { merge: true });
     alert("✓ Updated!");
   };
 
@@ -409,7 +409,7 @@ export default function App() {
     if (window.confirm("Delete this lead time?")) {
       const updated = leadTimes.filter(lt => lt.id !== id);
       setLeadTimes(updated);
-      setDoc(doc(db, "settings", "leadTimes"), { items: updated });
+      setDoc(doc(db, "settings", "leadTimes"), { items: updated }, { merge: true });
       alert("✓ Deleted!");
     }
   };
@@ -433,7 +433,7 @@ export default function App() {
     
     const updated = priceTiers.map(p => p.label === oldLabel ? { label: newLabel, min, max } : p);
     setPriceTiers(updated);
-    setDoc(doc(db, "settings", "priceTiers"), { items: updated });
+    setDoc(doc(db, "settings", "priceTiers"), { items: updated }, { merge: true });
     alert("✓ Updated!");
   };
 
@@ -441,7 +441,7 @@ export default function App() {
     if (window.confirm("Delete this tier?")) {
       const updated = priceTiers.filter(p => p.label !== label);
       setPriceTiers(updated);
-      setDoc(doc(db, "settings", "priceTiers"), { items: updated });
+      setDoc(doc(db, "settings", "priceTiers"), { items: updated }, { merge: true });
       alert("✓ Deleted!");
     }
   };
