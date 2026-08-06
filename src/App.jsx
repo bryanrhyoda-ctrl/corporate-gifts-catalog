@@ -69,34 +69,62 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    const unsubscribe = onSnapshot(doc(db, "settings", "leadTimes"), (docSnap) => {
-      if (docSnap.exists()) {
-        setLeadTimes(docSnap.data().items || DEFAULTS.leadTimes);
-        setLeadTimes(DEFAULTS.leadTimes);
+    console.log("Setting up leadTimes listener...");
+    const unsubscribe = onSnapshot(
+      doc(db, "settings", "leadTimes"),
+      (docSnap) => {
+        console.log("leadTimes snapshot received:", docSnap.data());
+        if (docSnap.exists()) {
+          setLeadTimes(docSnap.data().items || DEFAULTS.leadTimes);
+        } else {
+          console.log("leadTimes document doesn't exist, using defaults");
+          setLeadTimes(DEFAULTS.leadTimes);
+        }
+      },
+      (error) => {
+        console.error("❌ Lead times listener error:", error);
       }
-    });
+    );
     return () => unsubscribe();
   }, []);
 
   useEffect(() => {
-    const unsubscribe = onSnapshot(doc(db, "settings", "priceTiers"), (docSnap) => {
-      if (docSnap.exists()) {
-        setPriceTiers(docSnap.data().items || DEFAULTS.priceTiers);
-      } else {
-        setPriceTiers(DEFAULTS.priceTiers);
+    console.log("Setting up priceTiers listener...");
+    const unsubscribe = onSnapshot(
+      doc(db, "settings", "priceTiers"),
+      (docSnap) => {
+        console.log("priceTiers snapshot received:", docSnap.data());
+        if (docSnap.exists()) {
+          setPriceTiers(docSnap.data().items || DEFAULTS.priceTiers);
+        } else {
+          console.log("priceTiers document doesn't exist, using defaults");
+          setPriceTiers(DEFAULTS.priceTiers);
+        }
+      },
+      (error) => {
+        console.error("❌ Price tiers listener error:", error);
       }
-    });
+    );
     return () => unsubscribe();
   }, []);
 
   useEffect(() => {
-    const unsubscribe = onSnapshot(doc(db, "settings", "categories"), (docSnap) => {
-      if (docSnap.exists()) {
-        setCategoryList(docSnap.data().items || ["Electronic", "Bottle", "Stationery"]);
-      } else {
-        setCategoryList(["Electronic", "Bottle", "Stationery"]);
+    console.log("Setting up categories listener...");
+    const unsubscribe = onSnapshot(
+      doc(db, "settings", "categories"),
+      (docSnap) => {
+        console.log("categories snapshot received:", docSnap.data());
+        if (docSnap.exists()) {
+          setCategoryList(docSnap.data().items || ["Electronic", "Bottle", "Stationery"]);
+        } else {
+          console.log("categories document doesn't exist, using defaults");
+          setCategoryList(["Electronic", "Bottle", "Stationery"]);
+        }
+      },
+      (error) => {
+        console.error("❌ Categories listener error:", error);
       }
-    });
+    );
     return () => unsubscribe();
   }, []);
 
