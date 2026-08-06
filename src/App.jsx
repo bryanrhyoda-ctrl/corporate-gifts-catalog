@@ -1,6 +1,7 @@
 import { useState, useMemo, useEffect } from "react";
 import { collection, addDoc, updateDoc, deleteDoc, doc, onSnapshot, query, orderBy, setDoc } from "firebase/firestore";
-import { db } from "./firebase";
+import { ref, uploadBytes, getDownloadURL, deleteObject } from "firebase/storage";
+import { db, storage } from "./firebase";
 import { COLORS, DEFAULTS, OPTIONS } from "./constants";
 
 // Passwords (kept in component for security - not exported)
@@ -39,10 +40,13 @@ export default function App() {
     material: "",
     leadTime: "L1",
     moq: "",
-    image: "",
+    imageUrl: "",
+    imageFile: null,
     printing: [],
     pricingTiers: [],
   });
+
+  const [uploading, setUploading] = useState(false);
 
   const [newTierMoq, setNewTierMoq] = useState("");
   const [newTierPrice, setNewTierPrice] = useState("");
@@ -189,6 +193,46 @@ export default function App() {
     setEditingId(null);
   };
 
+  // Compress image before upload
+  const compressImage = (file) => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.readAsDataURL(file);
+      reader.onload = (event) => {
+        const img = new Image();
+        img.src = event.target.result;
+        img.onload = () => {
+          const canvas = document.createElement("canvas");
+          let { width, height } = img;
+          
+          // Resize to max 1200px width, maintain aspect ratio
+          if (width > 1200) {
+            height = (height * 1200) / width;
+            width = 1200;
+          }
+          
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext("2d");
+          ctx.drawImage(img, 0, 0, width, height);
+          
+          // Compress to JPEG with 80% quality
+          canvas.toBlob(
+            (blob) => {
+              const compressedFile = new File([blob], file.name, { type: "image/jpeg" });
+              console.log(`Compressed: ${(file.size / 1024).toFixed(2)}KB → ${(compressedFile.size / 1024).toFixed(2)}KB`);
+              resolve(compressedFile);
+            },
+            "image/jpeg",
+            0.8
+          );
+        };
+        img.onerror = () => reject(new Error("Failed to load image"));
+      };
+      reader.onerror = () => reject(new Error("Failed to read file"));
+    });
+  };
+
   const handleAddOrEditProduct = async (e) => {
     e.preventDefault();
     if (!formData.name || !formData.price || !formData.moq || formData.printing.length === 0 || !formData.category) {
@@ -196,22 +240,35 @@ export default function App() {
       return;
     }
 
-    const productData = {
-      name: formData.name,
-      category: formData.category,
-      price: parseInt(formData.price),
-      link: formData.link,
-      size: formData.size,
-      material: formData.material,
-      leadTime: formData.leadTime,
-      leadLabel: leadTimes.find(lt => lt.id === formData.leadTime)?.sub,
-      moq: parseInt(formData.moq),
-      image: formData.image,
-      printing: formData.printing.join(", "),
-      pricingTiers: formData.pricingTiers || [],
-    };
-
     try {
+      setUploading(true);
+      let imageUrl = formData.imageUrl;
+
+      // Upload image to Firebase Storage if a new file was selected
+      if (formData.imageFile) {
+        console.log("Compressing image...");
+        const compressedFile = await compressImage(formData.imageFile);
+        const fileName = `products/${Date.now()}_${formData.imageFile.name}`;
+        const storageRef = ref(storage, fileName);
+        await uploadBytes(storageRef, compressedFile);
+        imageUrl = await getDownloadURL(storageRef);
+      }
+
+      const productData = {
+        name: formData.name,
+        category: formData.category,
+        price: parseInt(formData.price),
+        link: formData.link,
+        size: formData.size,
+        material: formData.material,
+        leadTime: formData.leadTime,
+        leadLabel: leadTimes.find(lt => lt.id === formData.leadTime)?.sub,
+        moq: parseInt(formData.moq),
+        imageUrl: imageUrl,
+        printing: formData.printing.join(", "),
+        pricingTiers: formData.pricingTiers || [],
+      };
+
       if (editingId) {
         await updateDoc(doc(db, "products", editingId), productData);
         alert("✓ Updated!");
@@ -219,8 +276,10 @@ export default function App() {
         await addDoc(collection(db, "products"), productData);
         alert("✓ Added!");
       }
+      setUploading(false);
       resetForm();
     } catch (error) {
+      setUploading(false);
       alert("Error: " + error.message);
     }
   };
@@ -235,7 +294,8 @@ export default function App() {
       material: "",
       leadTime: "L1",
       moq: "",
-      image: "",
+      imageUrl: "",
+      imageFile: null,
       printing: [],
       pricingTiers: [],
     });
@@ -254,7 +314,8 @@ export default function App() {
       material: product.material || "",
       leadTime: product.leadTime,
       moq: product.moq.toString(),
-      image: product.image,
+      imageUrl: product.imageUrl || "",
+      imageFile: null,
       printing: product.printing ? product.printing.split(", ").map(b => b.trim()) : [],
       pricingTiers: product.pricingTiers || [],
     });
@@ -342,11 +403,8 @@ export default function App() {
 
   const handleImageUpload = (file) => {
     if (!file) return;
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      setFormData(prev => ({ ...prev, image: e.target.result }));
-    };
-    reader.readAsDataURL(file);
+    // Store the file object for later upload
+    setFormData(prev => ({ ...prev, imageFile: file }));
   };
 
   const handleDrag = (e) => {
@@ -493,9 +551,9 @@ export default function App() {
           </div>
 
           <div style={{ padding: "20px" }}>
-            {product.image && (
+            {product.imageUrl && (
               <div style={{ width: "100%", height: 280, background: COLORS.light, borderRadius: 10, marginBottom: 20, overflow: "hidden" }}>
-                <img src={product.image} alt={product.name} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                <img src={product.imageUrl} alt={product.name} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
               </div>
             )}
 
@@ -830,6 +888,11 @@ export default function App() {
                   <input type="file" accept="image/*" onChange={e => handleImageUpload(e.target.files?.[0])} style={{ display: "none" }} id="imageUploadInput" />
                   <label htmlFor="imageUploadInput" style={{ cursor: "pointer", fontSize: 14 }}>Drag or click to upload</label>
                 </div>
+                {(formData.imageFile || formData.imageUrl) && (
+                  <div style={{ marginTop: 12, fontSize: 12, color: COLORS.gray }}>
+                    ✓ {formData.imageFile?.name || "Image selected"}
+                  </div>
+                )}
               </div>
 
               <div>
@@ -876,7 +939,7 @@ export default function App() {
               </div>
 
               <div style={{ display: "flex", gap: 12 }}>
-                <button type="submit" style={{ flex: 1, padding: "14px 24px", background: COLORS.primary, color: COLORS.darkBlue, border: "none", borderRadius: 8, fontSize: 14, fontWeight: 600, cursor: "pointer" }}>{editingId ? "UPDATE" : "ADD"}</button>
+                <button type="submit" disabled={uploading} style={{ flex: 1, padding: "14px 24px", background: uploading ? COLORS.gray : COLORS.primary, color: COLORS.darkBlue, border: "none", borderRadius: 8, fontSize: 14, fontWeight: 600, cursor: uploading ? "not-allowed" : "pointer", opacity: uploading ? 0.6 : 1 }}>{uploading ? "⏳ Uploading..." : (editingId ? "UPDATE" : "ADD")}</button>
                 {editingId && <button type="button" onClick={() => { setEditingId(null); resetForm(); }} style={{ flex: 1, padding: "14px 24px", background: COLORS.gray, color: COLORS.white, border: "none", borderRadius: 8, fontSize: 14, fontWeight: 600, cursor: "pointer" }}>CANCEL</button>}
               </div>
             </form>
@@ -962,9 +1025,9 @@ export default function App() {
               const lc = OPTIONS.leadColors[p.leadTime] || { bg: COLORS.light, text: COLORS.gray, badge: COLORS.gray };
               return (
                 <div key={p.firestoreId} onClick={() => setSelectedProduct(p)} style={{ background: COLORS.white, borderRadius: 10, padding: "18px 20px", border: `1.5px solid ${COLORS.light}`, overflow: "hidden", cursor: "pointer", transition: "all 0.3s ease" }}>
-                  {p.image ? (
+                  {p.imageUrl ? (
                     <div style={{ width: "calc(100% + 40px)", height: 240, marginLeft: -20, marginTop: -18, marginBottom: 14, background: COLORS.light, overflow: "hidden" }}>
-                      <img src={p.image} alt={p.name} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                      <img src={p.imageUrl} alt={p.name} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
                     </div>
                   ) : (
                     <div style={{ width: "calc(100% + 40px)", height: 240, marginLeft: -20, marginTop: -18, marginBottom: 14, background: COLORS.light, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 40 }}>📦</div>
