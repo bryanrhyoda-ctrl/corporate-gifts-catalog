@@ -193,46 +193,6 @@ export default function App() {
     setEditingId(null);
   };
 
-  // Compress image before upload
-  const compressImage = (file) => {
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.readAsDataURL(file);
-      reader.onload = (event) => {
-        const img = new Image();
-        img.src = event.target.result;
-        img.onload = () => {
-          const canvas = document.createElement("canvas");
-          let { width, height } = img;
-          
-          // Resize to max 1200px width, maintain aspect ratio
-          if (width > 1200) {
-            height = (height * 1200) / width;
-            width = 1200;
-          }
-          
-          canvas.width = width;
-          canvas.height = height;
-          const ctx = canvas.getContext("2d");
-          ctx.drawImage(img, 0, 0, width, height);
-          
-          // Compress to JPEG with 80% quality
-          canvas.toBlob(
-            (blob) => {
-              const compressedFile = new File([blob], file.name, { type: "image/jpeg" });
-              console.log(`Compressed: ${(file.size / 1024).toFixed(2)}KB → ${(compressedFile.size / 1024).toFixed(2)}KB`);
-              resolve(compressedFile);
-            },
-            "image/jpeg",
-            0.8
-          );
-        };
-        img.onerror = () => reject(new Error("Failed to load image"));
-      };
-      reader.onerror = () => reject(new Error("Failed to read file"));
-    });
-  };
-
   const handleAddOrEditProduct = async (e) => {
     e.preventDefault();
     if (!formData.name || !formData.price || !formData.moq || formData.printing.length === 0 || !formData.category) {
@@ -246,12 +206,14 @@ export default function App() {
 
       // Upload image to Firebase Storage if a new file was selected
       if (formData.imageFile) {
-        console.log("Compressing image...");
-        const compressedFile = await compressImage(formData.imageFile);
+        console.log("📤 Uploading image to Firebase Storage...");
         const fileName = `products/${Date.now()}_${formData.imageFile.name}`;
         const storageRef = ref(storage, fileName);
-        await uploadBytes(storageRef, compressedFile);
+        await uploadBytes(storageRef, formData.imageFile);
+        
+        console.log("🔗 Getting download URL...");
         imageUrl = await getDownloadURL(storageRef);
+        console.log("✓ Image uploaded successfully!");
       }
 
       const productData = {
@@ -280,6 +242,7 @@ export default function App() {
       resetForm();
     } catch (error) {
       setUploading(false);
+      console.error("❌ Upload error:", error);
       alert("Error: " + error.message);
     }
   };
