@@ -1,7 +1,13 @@
 import { useState, useMemo, useEffect } from "react";
 import { collection, addDoc, updateDoc, deleteDoc, doc, onSnapshot, query, orderBy, setDoc } from "firebase/firestore";
 import { db } from "./firebase";
-import { COLORS, PRINTING_OPTIONS, LEAD_COLORS, DEFAULT_LEAD_TIMES, DEFAULT_PRICE_TIERS, PASSWORDS } from "./constants";
+import { COLORS, DEFAULTS, OPTIONS } from "./constants";
+
+// Passwords (kept in component for security - not exported)
+const PASSWORDS = {
+  catalog: "PANTONE",
+  admin: "admin123",
+};
 
 
 
@@ -65,9 +71,8 @@ export default function App() {
   useEffect(() => {
     const unsubscribe = onSnapshot(doc(db, "settings", "leadTimes"), (docSnap) => {
       if (docSnap.exists()) {
-        setLeadTimes(docSnap.data().items || DEFAULT_LEAD_TIMES);
-      } else {
-        setLeadTimes(DEFAULT_LEAD_TIMES);
+        setLeadTimes(docSnap.data().items || DEFAULTS.leadTimes);
+        setLeadTimes(DEFAULTS.leadTimes);
       }
     });
     return () => unsubscribe();
@@ -76,9 +81,9 @@ export default function App() {
   useEffect(() => {
     const unsubscribe = onSnapshot(doc(db, "settings", "priceTiers"), (docSnap) => {
       if (docSnap.exists()) {
-        setPriceTiers(docSnap.data().items || DEFAULT_PRICE_TIERS);
+        setPriceTiers(docSnap.data().items || DEFAULTS.priceTiers);
       } else {
-        setPriceTiers(DEFAULT_PRICE_TIERS);
+        setPriceTiers(DEFAULTS.priceTiers);
       }
     });
     return () => unsubscribe();
@@ -448,7 +453,7 @@ export default function App() {
   // PRODUCT DETAIL SIDE PANEL
   const ProductDetailPanel = ({ product, onClose }) => {
     if (!product) return null;
-    const lc = LEAD_COLORS[product.leadTime] || { bg: COLORS.light, text: COLORS.gray, badge: COLORS.gray };
+    const lc = OPTIONS.leadColors[product.leadTime] || { bg: COLORS.light, text: COLORS.gray, badge: COLORS.gray };
     
     return (
       <>
@@ -802,7 +807,7 @@ export default function App() {
               <div>
                 <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: COLORS.gray, marginBottom: 10 }}>Printing Options *</label>
                 <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-                  {PRINTING_OPTIONS.map(option => (
+                  {OPTIONS.printing.map(option => (
                     <button key={option} type="button" onClick={() => togglePrinting(option)} style={{ padding: "8px 14px", borderRadius: 20, fontSize: 12, fontWeight: 500, cursor: "pointer", border: formData.printing.includes(option) ? `1.5px solid ${COLORS.primary}` : `1px solid ${COLORS.light}`, background: formData.printing.includes(option) ? COLORS.primary : COLORS.white, color: formData.printing.includes(option) ? COLORS.darkBlue : COLORS.gray }}>{option}</button>
                   ))}
                 </div>
@@ -896,7 +901,7 @@ export default function App() {
             <div style={{ fontSize: 11, fontWeight: 700, color: COLORS.gray, textTransform: "uppercase", marginBottom: 10 }}>Lead Time</div>
             <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
               {leadTimes.map(lt => {
-                const c = LEAD_COLORS[lt.id] || { bg: COLORS.light, text: COLORS.gray, badge: COLORS.gray };
+                const c = OPTIONS.leadColors[lt.id] || { bg: COLORS.light, text: COLORS.gray, badge: COLORS.gray };
                 const active = selectedLead === lt.id;
                 return (
                   <button key={lt.id} onClick={() => setSelectedLead(selectedLead === lt.id ? null : lt.id)} style={{ padding: "6px 13px", borderRadius: 20, fontSize: 12, fontWeight: 500, cursor: "pointer", border: active ? `1.5px solid ${c.badge}` : `1.5px solid ${COLORS.light}`, background: active ? c.bg : COLORS.white, color: active ? c.text : COLORS.gray }}>{lt.sub}</button>
@@ -926,7 +931,7 @@ export default function App() {
         ) : (
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: 16, marginBottom: 40 }}>
             {filtered.map(p => {
-              const lc = LEAD_COLORS[p.leadTime] || { bg: COLORS.light, text: COLORS.gray, badge: COLORS.gray };
+              const lc = OPTIONS.leadColors[p.leadTime] || { bg: COLORS.light, text: COLORS.gray, badge: COLORS.gray };
               return (
                 <div key={p.firestoreId} onClick={() => setSelectedProduct(p)} style={{ background: COLORS.white, borderRadius: 10, padding: "18px 20px", border: `1.5px solid ${COLORS.light}`, overflow: "hidden", cursor: "pointer", transition: "all 0.3s ease" }}>
                   {p.image ? (
