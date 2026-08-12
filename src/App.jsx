@@ -495,7 +495,7 @@ export default function App() {
           <div style={{ padding: "20px" }}>
             {product.image && (
               <div style={{ width: "100%", height: 280, background: COLORS.light, borderRadius: 10, marginBottom: 20, overflow: "hidden" }}>
-                <img src={product.image} alt={product.name} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                <img src={product.image} alt={product.name} style={{ width: "100%", height: "100%", objectFit: "contain" }} />
               </div>
             )}
 
@@ -969,7 +969,7 @@ export default function App() {
                 <div key={p.firestoreId} onClick={() => setSelectedProduct(p)} style={{ background: COLORS.white, borderRadius: 10, padding: "18px 20px", border: `1.5px solid ${COLORS.light}`, overflow: "hidden", cursor: "pointer", transition: "all 0.3s ease" }}>
                   {p.image ? (
                     <div style={{ width: "calc(100% + 40px)", height: 240, marginLeft: -20, marginTop: -18, marginBottom: 14, background: COLORS.light, overflow: "hidden" }}>
-                      <img src={p.image} alt={p.name} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                      <img src={p.image} alt={p.name} style={{ width: "100%", height: "100%", objectFit: "contain" }} />
                     </div>
                   ) : (
                     <div style={{ width: "calc(100% + 40px)", height: 240, marginLeft: -20, marginTop: -18, marginBottom: 14, background: COLORS.light, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 40 }}>📦</div>
