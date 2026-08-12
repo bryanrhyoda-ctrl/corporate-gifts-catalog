@@ -199,7 +199,7 @@ export default function App() {
     const productData = {
       name: formData.name,
       category: formData.category,
-      price: parseInt(formData.price),
+      price: parseFloat(formData.price),
       link: formData.link,
       size: formData.size,
       material: formData.material,
