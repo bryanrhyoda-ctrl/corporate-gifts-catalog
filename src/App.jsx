@@ -969,7 +969,6 @@ export default function App() {
               <ProductCard key={p.firestoreId} product={p} onSelect={setSelectedProduct} />
             ))}
           </div>
-          </div>
         )}
       </div>
     </div>
