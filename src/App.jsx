@@ -227,7 +227,6 @@ export default function App() {
       size: formData.size,
       material: formData.material,
       leadTime: formData.leadTime,
-      leadLabel: leadTimes.find(lt => lt.id === formData.leadTime)?.sub,
       moq: parseInt(formData.moq),
       image: formData.image,
       printing: formData.printing.join(", "),
@@ -749,7 +748,7 @@ export default function App() {
   // CATALOG VIEW
   return (
     <div style={{ fontFamily: "'Inter', system-ui, sans-serif", background: COLORS.light, minHeight: "100vh", padding: "0 0 60px" }}>
-      {selectedProduct && <ProductDetailPanel product={selectedProduct} onClose={() => setSelectedProduct(null)} />}
+      {selectedProduct && <ProductDetailPanel product={selectedProduct} onClose={() => setSelectedProduct(null)} leadTimes={leadTimes} />}
 
       <div style={{ background: COLORS.primary, padding: "24px 32px", borderRadius: 8, marginBottom: 0 }}>
         <div style={{ maxWidth: 1200, margin: "0 auto", display: "flex", justifyContent: "space-between", alignItems: "center", gap: 16 }}>
@@ -820,7 +819,7 @@ export default function App() {
           <div>
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: 16, marginBottom: 20 }}>
               {paginatedProducts.map(p => (
-                <ProductCard key={p.firestoreId} product={p} onSelect={setSelectedProduct} />
+                <ProductCard key={p.firestoreId} product={p} onSelect={setSelectedProduct} leadTimes={leadTimes} />
               ))}
             </div>
 
