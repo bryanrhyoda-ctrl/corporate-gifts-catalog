@@ -2,6 +2,8 @@ import { useState, useMemo, useEffect } from "react";
 import { collection, addDoc, updateDoc, deleteDoc, doc, onSnapshot, query, orderBy, setDoc } from "firebase/firestore";
 import { db } from "./firebase";
 import { COLORS, DEFAULTS, OPTIONS } from "./constants";
+import ProductCard from "./components/ProductCard";
+import ProductDetailPanel from "./components/ProductDetailPanel";
 
 // Passwords (kept in component for security - not exported)
 const PASSWORDS = {
@@ -894,7 +896,7 @@ export default function App() {
   // CATALOG VIEW
   return (
     <div style={{ fontFamily: "'Inter', system-ui, sans-serif", background: COLORS.light, minHeight: "100vh", padding: "0 0 60px" }}>
-      <ProductDetailPanel product={selectedProduct} onClose={() => setSelectedProduct(null)} />
+      {selectedProduct && <ProductDetailPanel product={selectedProduct} onClose={() => setSelectedProduct(null)} />}
 
       <div style={{ background: COLORS.primary, padding: "24px 32px", borderRadius: 8, marginBottom: 0 }}>
         <div style={{ maxWidth: 1200, margin: "0 auto", display: "flex", justifyContent: "space-between", alignItems: "center", gap: 16 }}>
@@ -963,40 +965,10 @@ export default function App() {
           </div>
         ) : (
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: 16, marginBottom: 40 }}>
-            {filtered.map(p => {
-              const lc = OPTIONS.leadColors[p.leadTime] || { bg: COLORS.light, text: COLORS.gray, badge: COLORS.gray };
-              return (
-                <div key={p.firestoreId} onClick={() => setSelectedProduct(p)} style={{ background: COLORS.white, borderRadius: 10, padding: "18px 20px", border: `1.5px solid ${COLORS.light}`, overflow: "hidden", cursor: "pointer", transition: "all 0.3s ease" }}>
-                  {p.image ? (
-                    <div style={{ width: "calc(100% + 40px)", height: 240, marginLeft: -20, marginTop: -18, marginBottom: 14, background: COLORS.light, overflow: "hidden" }}>
-                      <img src={p.image} alt={p.name} style={{ width: "100%", height: "100%", objectFit: "contain" }} />
-                    </div>
-                  ) : (
-                    <div style={{ width: "calc(100% + 40px)", height: 240, marginLeft: -20, marginTop: -18, marginBottom: 14, background: COLORS.light, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 40 }}>📦</div>
-                  )}
-                  <div style={{ fontSize: 10, fontWeight: 700, color: COLORS.gray, textTransform: "uppercase", marginBottom: 6 }}>{p.category}</div>
-                  <div style={{ fontSize: 15, fontWeight: 700, color: COLORS.text, marginBottom: 4 }}>{p.name}</div>
-                  {p.size && <div style={{ fontSize: 12, color: COLORS.gray, marginBottom: 4 }}>Size: {p.size}</div>}
-                  {p.material && <div style={{ fontSize: 12, color: COLORS.gray, marginBottom: 10 }}>Material: {p.material}</div>}
-                  <div style={{ display: "flex", alignItems: "baseline", gap: 4, marginBottom: 12 }}>
-                    <span style={{ fontSize: 22, fontWeight: 800, color: COLORS.primary }}>RM{parseFloat(p.price).toFixed(2)}</span>
-                    <span style={{ fontSize: 12, color: COLORS.gray }}>/ unit</span>
-                  </div>
-                  <div style={{ display: "inline-flex", alignItems: "center", gap: 5, background: lc.bg, color: lc.text, borderRadius: 6, padding: "4px 9px", fontSize: 11, fontWeight: 600, marginBottom: 12 }}>
-                    <span style={{ width: 6, height: 6, borderRadius: "50%", background: lc.badge }} />
-                    {p.leadLabel}
-                  </div>
-                  
-                  <div style={{ height: 1, background: COLORS.light, margin: "8px 0" }} />
-                  <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, color: COLORS.gray, marginTop: 10, marginBottom: 6 }}>
-                    <span>MOQ: <strong>{p.moq}</strong></span>
-                    <span style={{ fontSize: 11 }}>{p.printing}</span>
-                  </div>
-
-                  <div style={{ padding: "8px 0", background: COLORS.lime, borderRadius: 6, textAlign: "center", fontSize: 12, fontWeight: 600, color: COLORS.darkBlue }}>Click for Details →</div>
-                </div>
-              );
-            })}
+            {filtered.map(p => (
+              <ProductCard key={p.firestoreId} product={p} onSelect={setSelectedProduct} />
+            ))}
+          </div>
           </div>
         )}
       </div>
