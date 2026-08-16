@@ -31,6 +31,7 @@ export default function App() {
   const [selectedCategory, setSelectedCategory] = useState(null);
   const [selectedLead, setSelectedLead] = useState(null);
   const [search, setSearch] = useState("");
+  const [currentPage, setCurrentPage] = useState(1);
   const [editingId, setEditingId] = useState(null);
   const [dragActive, setDragActive] = useState(false);
   const [password, setPassword] = useState("");
@@ -156,6 +157,20 @@ export default function App() {
       return true;
     });
   }, [products, selectedPrice, selectedCategory, selectedLead, search, priceTiers]);
+
+  // PAGINATION
+  const ITEMS_PER_PAGE = 20;
+  const totalPages = Math.ceil(filtered.length / ITEMS_PER_PAGE);
+  const paginatedProducts = useMemo(() => {
+    const startIdx = (currentPage - 1) * ITEMS_PER_PAGE;
+    const endIdx = startIdx + ITEMS_PER_PAGE;
+    return filtered.slice(startIdx, endIdx);
+  }, [filtered, currentPage]);
+
+  // Reset to page 1 when filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [selectedPrice, selectedCategory, selectedLead, search]);
 
   const filteredManageProducts = useMemo(() => {
     if (!manageProductSearch.trim()) return products;
@@ -802,10 +817,27 @@ export default function App() {
             <div>No products found</div>
           </div>
         ) : (
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: 16, marginBottom: 40 }}>
-            {filtered.map(p => (
-              <ProductCard key={p.firestoreId} product={p} onSelect={setSelectedProduct} />
-            ))}
+          <div>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: 16, marginBottom: 20 }}>
+              {paginatedProducts.map(p => (
+                <ProductCard key={p.firestoreId} product={p} onSelect={setSelectedProduct} />
+              ))}
+            </div>
+
+            {/* PAGINATION CONTROLS */}
+            <div style={{ display: "flex", justifyContent: "center", alignItems: "center", gap: 12, marginBottom: 40, flexWrap: "wrap" }}>
+              <button onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))} disabled={currentPage === 1} style={{ padding: "8px 16px", background: currentPage === 1 ? COLORS.light : COLORS.primary, color: currentPage === 1 ? COLORS.gray : COLORS.darkBlue, border: "none", borderRadius: 6, cursor: currentPage === 1 ? "not-allowed" : "pointer", fontSize: 14, fontWeight: 600 }}>← Previous</button>
+
+              <div style={{ display: "flex", gap: 6 }}>
+                {Array.from({ length: totalPages }, (_, i) => (
+                  <button key={i + 1} onClick={() => setCurrentPage(i + 1)} style={{ padding: "6px 12px", background: currentPage === i + 1 ? COLORS.primary : COLORS.white, color: currentPage === i + 1 ? COLORS.darkBlue : COLORS.gray, border: `1px solid ${currentPage === i + 1 ? COLORS.primary : COLORS.light}`, borderRadius: 4, cursor: "pointer", fontSize: 13, fontWeight: currentPage === i + 1 ? 700 : 500 }}>{i + 1}</button>
+                ))}
+              </div>
+
+              <button onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))} disabled={currentPage === totalPages} style={{ padding: "8px 16px", background: currentPage === totalPages ? COLORS.light : COLORS.primary, color: currentPage === totalPages ? COLORS.gray : COLORS.darkBlue, border: "none", borderRadius: 6, cursor: currentPage === totalPages ? "not-allowed" : "pointer", fontSize: 14, fontWeight: 600 }}>Next →</button>
+
+              <div style={{ fontSize: 12, color: COLORS.gray, marginLeft: 12 }}>Page {currentPage} of {totalPages} ({filtered.length} products)</div>
+            </div>
           </div>
         )}
       </div>
