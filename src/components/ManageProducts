@@ -22,9 +22,43 @@ export default function ManageProducts({ products, onEdit, onBack }) {
     }
   };
 
+  const backBtnStyle = {
+    padding: "10px 16px",
+    background: COLORS.light,
+    border: `1px solid ${COLORS.gray}`,
+    borderRadius: 6,
+    cursor: "pointer",
+    marginBottom: 16,
+    fontSize: 14,
+    fontWeight: 600
+  };
+
+  const editBtnStyle = {
+    padding: "6px 12px",
+    background: COLORS.lime,
+    border: "none",
+    borderRadius: 4,
+    cursor: "pointer",
+    fontSize: 12,
+    fontWeight: 600,
+    color: COLORS.darkBlue,
+    marginRight: 6
+  };
+
+  const deleteBtnStyle = {
+    padding: "6px 12px",
+    background: "#ff6b6b",
+    border: "none",
+    borderRadius: 4,
+    cursor: "pointer",
+    fontSize: 12,
+    fontWeight: 600,
+    color: COLORS.white
+  };
+
   return (
     <div>
-      <button onClick={onBack} style={{ padding: "10px 16px", background: COLORS.light, border: `1px solid ${COLORS.gray}`, borderRadius: 6, cursor: "pointer", marginBottom: 16, fontSize: 14, fontWeight: 600 }}>← Back</button>
+      <button onClick={onBack} style={backBtnStyle}>← Back</button>
 
       <input
         type="text"
@@ -55,8 +89,8 @@ export default function ManageProducts({ products, onEdit, onBack }) {
                 <td style={{ padding: "12px", fontSize: 13, color: COLORS.text }}>{p.size || "—"}</td>
                 <td style={{ padding: "12px", fontSize: 13, color: COLORS.text }}>{p.material || "—"}</td>
                 <td style={{ padding: "12px", textAlign: "center" }}>
-                  <button onClick={() => onEdit(p)} style={{ padding: "6px 12px", background: COLORS.lime, border: "none", borderRadius: 4, cursor: "pointer", fontSize: 12, fontWeight: 600, color: COLORS.darkBlue, marginRight: 6 }}>Edit</button>
-                  <button onClick={() => handleDelete(p.firestoreId)} style={{ padding: "6px 12px", background: "#ff6b6b", border: "none", borderRadius: 4, cursor: "pointer", fontSize: 12, fontWeight: 600, color: COLORS.white }}>Delete</button>
+                  <button onClick={() => onEdit(p)} style={editBtnStyle}>Edit</button>
+                  <button onClick={() => handleDelete(p.firestoreId)} style={deleteBtnStyle}>Delete</button>
                 </td>
               </tr>
             ))}
