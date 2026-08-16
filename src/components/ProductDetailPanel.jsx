@@ -1,6 +1,7 @@
 import { COLORS, OPTIONS } from "../constants";
 
-export default function ProductDetailPanel({ product, onClose }) {
+export default function ProductDetailPanel({ product, onClose, leadTimes }) {
+  const leadLabel = leadTimes?.find(lt => lt.id === product.leadTime)?.sub || product.leadLabel || "Unknown";
   const lc = OPTIONS.leadColors[product.leadTime] || { bg: COLORS.light, text: COLORS.gray, badge: COLORS.gray };
 
   return (
@@ -32,7 +33,7 @@ export default function ProductDetailPanel({ product, onClose }) {
           <div style={{ fontSize: 13, color: COLORS.gray, marginBottom: 16 }}>
             ⏱️ Lead Time:
             <span style={{ fontSize: 12, fontWeight: 600, color: lc.text, background: lc.bg, padding: "6px 12px", borderRadius: 20, border: `1px solid ${lc.badge}`, marginLeft: 8, display: "inline-block" }}>
-              {product.leadLabel}
+              {leadLabel}
             </span>
           </div>
 
