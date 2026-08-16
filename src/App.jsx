@@ -4,6 +4,12 @@ import { db } from "./firebase";
 import { COLORS, DEFAULTS, OPTIONS } from "./constants";
 import ProductCard from "./components/ProductCard";
 import ProductDetailPanel from "./components/ProductDetailPanel";
+import AdminMenu from "./components/AdminMenu";
+import ManageProducts from "./components/ManageProducts";
+import AddProduct from "./components/AddProduct";
+import EditLeadTimes from "./components/EditLeadTimes";
+import EditPriceTiers from "./components/EditPriceTiers";
+import EditCategories from "./components/EditCategories";
 
 // Passwords (kept in component for security - not exported)
 const PASSWORDS = {
@@ -613,19 +619,7 @@ export default function App() {
           <h1 style={{ fontSize: 36, fontWeight: 700, marginBottom: 40, color: COLORS.darkBlue, textAlign: "center" }}>⚙️ ADMIN PANEL</h1>
           <button onClick={handleLogout} style={{ width: "100%", marginBottom: 20, padding: "12px 20px", background: COLORS.gray, color: COLORS.white, border: "none", borderRadius: 8, cursor: "pointer", fontSize: 14, fontWeight: 600 }}>🔒 Logout</button>
           
-          <button onClick={() => setAdminPanel("manageProducts")} style={{ width: "100%", marginBottom: 16, padding: "20px", background: COLORS.white, border: `2px solid ${COLORS.primary}`, borderRadius: 12, cursor: "pointer", fontSize: 18, fontWeight: 700, color: COLORS.darkBlue }}>📦 MANAGE PRODUCTS</button>
-
-          <button onClick={() => setAdminPanel("addProduct")} style={{ width: "100%", marginBottom: 16, padding: "20px", background: COLORS.primary, border: "none", borderRadius: 12, cursor: "pointer", fontSize: 18, fontWeight: 700, color: COLORS.darkBlue }}>✨ ADD PRODUCT</button>
-          
-          <button onClick={() => setAdminPanel("leadTimes")} style={{ width: "100%", marginBottom: 16, padding: "20px", background: COLORS.white, border: `2px solid ${COLORS.lime}`, borderRadius: 12, cursor: "pointer", fontSize: 18, fontWeight: 700, color: COLORS.darkBlue }}>⏱️ EDIT LEAD TIMES</button>
-          
-          <button onClick={() => setAdminPanel("priceTiers")} style={{ width: "100%", marginBottom: 16, padding: "20px", background: COLORS.white, border: `2px solid ${COLORS.purple}`, borderRadius: 12, cursor: "pointer", fontSize: 18, fontWeight: 700, color: COLORS.darkBlue }}>💰 EDIT PRICE TIERS</button>
-          
-          <button onClick={() => setAdminPanel("categories")} style={{ width: "100%", marginBottom: 16, padding: "20px", background: COLORS.white, border: `2px solid ${COLORS.primary}`, borderRadius: 12, cursor: "pointer", fontSize: 18, fontWeight: 700, color: COLORS.darkBlue }}>📂 EDIT CATEGORIES</button>
-
-          <button onClick={exportToCSV} style={{ width: "100%", marginBottom: 16, padding: "20px", background: COLORS.white, border: `2px solid ${COLORS.lime}`, borderRadius: 12, cursor: "pointer", fontSize: 18, fontWeight: 700, color: COLORS.lime }}>💾 EXPORT CSV</button>
-
-          <button onClick={() => setAdminPanel("backup")} style={{ width: "100%", padding: "20px", background: COLORS.white, border: `2px solid ${COLORS.darkBlue}`, borderRadius: 12, cursor: "pointer", fontSize: 18, fontWeight: 700, color: COLORS.darkBlue }}>📥 BACKUP GUIDE</button>
+          <AdminMenu onSelectAction={setAdminPanel} />
         </div>
       </div>
     );
@@ -635,50 +629,8 @@ export default function App() {
   if (userMode === "adminPanel" && adminPanel === "manageProducts") {
     return (
       <div style={{ fontFamily: "'Inter', system-ui, sans-serif", background: COLORS.light, minHeight: "100vh", padding: "40px 20px" }}>
-        <div style={{ maxWidth: 900, margin: "0 auto" }}>
-          <button onClick={() => setAdminPanel(null)} style={{ marginBottom: 20, padding: "10px 20px", background: COLORS.darkBlue, color: COLORS.white, border: "none", borderRadius: 6, cursor: "pointer", fontSize: 14, fontWeight: 600 }}>← Back</button>
-          <div style={{ background: COLORS.white, padding: 40, borderRadius: 12, border: `2px solid ${COLORS.primary}` }}>
-            <h1 style={{ fontSize: 28, fontWeight: 700, marginBottom: 20, color: COLORS.darkBlue }}>📦 MANAGE PRODUCTS</h1>
-            <input type="text" value={manageProductSearch} onChange={e => setManageProductSearch(e.target.value)} placeholder="Search by product name..." style={{ width: "100%", boxSizing: "border-box", padding: "12px 16px", fontSize: 14, border: `1.5px solid ${COLORS.light}`, borderRadius: 8, marginBottom: 20, fontFamily: "inherit" }} />
-            
-            <div style={{ fontSize: 13, color: COLORS.gray, marginBottom: 20 }}>Total: <strong>{filteredManageProducts.length}</strong> product(s)</div>
-
-            {filteredManageProducts.length === 0 ? (
-              <div style={{ textAlign: "center", padding: "40px 20px", color: COLORS.gray }}>No products found</div>
-            ) : (
-              <div style={{ overflowX: "auto" }}>
-                <table style={{ width: "100%", borderCollapse: "collapse" }}>
-                  <thead>
-                    <tr style={{ background: COLORS.light }}>
-                      <th style={{ padding: "12px", textAlign: "left", fontSize: 12, fontWeight: 700, borderBottom: `2px solid ${COLORS.gray}` }}>Name</th>
-                      <th style={{ padding: "12px", textAlign: "left", fontSize: 12, fontWeight: 700, borderBottom: `2px solid ${COLORS.gray}` }}>Category</th>
-                      <th style={{ padding: "12px", textAlign: "left", fontSize: 12, fontWeight: 700, borderBottom: `2px solid ${COLORS.gray}` }}>Price</th>
-                      <th style={{ padding: "12px", textAlign: "left", fontSize: 12, fontWeight: 700, borderBottom: `2px solid ${COLORS.gray}` }}>Material</th>
-                      <th style={{ padding: "12px", textAlign: "left", fontSize: 12, fontWeight: 700, borderBottom: `2px solid ${COLORS.gray}` }}>MOQ</th>
-                      <th style={{ padding: "12px", textAlign: "left", fontSize: 12, fontWeight: 700, borderBottom: `2px solid ${COLORS.gray}` }}>Lead Time</th>
-                      <th style={{ padding: "12px", textAlign: "center", fontSize: 12, fontWeight: 700, borderBottom: `2px solid ${COLORS.gray}` }}>Action</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {filteredManageProducts.map((p, idx) => (
-                      <tr key={p.firestoreId} style={{ borderBottom: `1px solid ${COLORS.light}`, background: idx % 2 === 0 ? COLORS.light : COLORS.white }}>
-                        <td style={{ padding: "12px", fontSize: 13, color: COLORS.text, fontWeight: 500 }}>{p.name}</td>
-                        <td style={{ padding: "12px", fontSize: 13, color: COLORS.gray }}>{p.category}</td>
-                        <td style={{ padding: "12px", fontSize: 13, color: COLORS.text, fontWeight: 600 }}>RM{parseFloat(p.price).toFixed(2)}</td>
-                        <td style={{ padding: "12px", fontSize: 13, color: COLORS.gray }}>{p.material || "—"}</td>
-                        <td style={{ padding: "12px", fontSize: 13, color: COLORS.gray }}>{p.moq}</td>
-                        <td style={{ padding: "12px", fontSize: 13, color: COLORS.gray }}>{p.leadLabel}</td>
-                        <td style={{ padding: "12px", textAlign: "center", display: "flex", gap: 8, justifyContent: "center" }}>
-                          <button onClick={() => startEditProduct(p)} style={{ padding: "6px 12px", background: COLORS.primary, color: COLORS.darkBlue, border: "none", borderRadius: 4, cursor: "pointer", fontWeight: 600, fontSize: 11 }}>✏️ Edit</button>
-                          <button onClick={() => deleteProduct(p.firestoreId)} style={{ padding: "6px 12px", background: "#ff5555", color: COLORS.white, border: "none", borderRadius: 4, cursor: "pointer", fontWeight: 600, fontSize: 11 }}>🗑️ Delete</button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </div>
+        <div style={{ maxWidth: 900, margin: "0 auto", background: COLORS.white, padding: 40, borderRadius: 12, border: `2px solid ${COLORS.primary}` }}>
+          <ManageProducts products={products} onEdit={startEditProduct} onBack={() => setAdminPanel(null)} />
         </div>
       </div>
     );
@@ -720,24 +672,8 @@ export default function App() {
   if (userMode === "adminPanel" && adminPanel === "leadTimes") {
     return (
       <div style={{ fontFamily: "'Inter', system-ui, sans-serif", background: COLORS.light, minHeight: "100vh", padding: "40px 20px" }}>
-        <div style={{ maxWidth: 600, margin: "0 auto" }}>
-          <button onClick={() => setAdminPanel(null)} style={{ marginBottom: 20, padding: "10px 20px", background: COLORS.darkBlue, color: COLORS.white, border: "none", borderRadius: 6, cursor: "pointer", fontSize: 14, fontWeight: 600 }}>← Back</button>
-          <div style={{ background: COLORS.white, padding: 40, borderRadius: 12, border: `2px solid ${COLORS.lime}` }}>
-            <h1 style={{ fontSize: 28, fontWeight: 700, marginBottom: 30, color: COLORS.darkBlue }}>⏱️ EDIT LEAD TIMES</h1>
-            <button onClick={addLeadTime} style={{ width: "100%", marginBottom: 20, padding: "12px 20px", background: COLORS.lime, color: COLORS.darkBlue, border: "none", borderRadius: 8, cursor: "pointer", fontSize: 13, fontWeight: 600 }}>+ ADD LEAD TIME</button>
-            {leadTimes.map(lt => (
-              <div key={lt.id} style={{ padding: 16, background: COLORS.light, borderRadius: 8, marginBottom: 12, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                <div>
-                  <div style={{ fontSize: 18, fontWeight: 700, color: COLORS.text }}>{lt.label}</div>
-                  <div style={{ fontSize: 13, color: COLORS.gray }}>{lt.sub}</div>
-                </div>
-                <div style={{ display: "flex", gap: 8 }}>
-                  <button onClick={() => editLeadTime(lt.id)} style={{ padding: "8px 16px", background: COLORS.lime, color: COLORS.darkBlue, border: "none", borderRadius: 6, cursor: "pointer", fontWeight: 600, fontSize: 12 }}>EDIT</button>
-                  <button onClick={() => deleteLeadTime(lt.id)} style={{ padding: "8px 16px", background: "#ff5555", color: COLORS.white, border: "none", borderRadius: 6, cursor: "pointer", fontWeight: 600, fontSize: 12 }}>DELETE</button>
-                </div>
-              </div>
-            ))}
-          </div>
+        <div style={{ maxWidth: 600, margin: "0 auto", background: COLORS.white, padding: 40, borderRadius: 12, border: `2px solid ${COLORS.lime}` }}>
+          <EditLeadTimes leadTimes={leadTimes} setLeadTimes={setLeadTimes} onBack={() => setAdminPanel(null)} />
         </div>
       </div>
     );
@@ -747,23 +683,8 @@ export default function App() {
   if (userMode === "adminPanel" && adminPanel === "priceTiers") {
     return (
       <div style={{ fontFamily: "'Inter', system-ui, sans-serif", background: COLORS.light, minHeight: "100vh", padding: "40px 20px" }}>
-        <div style={{ maxWidth: 600, margin: "0 auto" }}>
-          <button onClick={() => setAdminPanel(null)} style={{ marginBottom: 20, padding: "10px 20px", background: COLORS.darkBlue, color: COLORS.white, border: "none", borderRadius: 6, cursor: "pointer", fontSize: 14, fontWeight: 600 }}>← Back</button>
-          <div style={{ background: COLORS.white, padding: 40, borderRadius: 12, border: `2px solid ${COLORS.purple}` }}>
-            <h1 style={{ fontSize: 28, fontWeight: 700, marginBottom: 30, color: COLORS.darkBlue }}>💰 EDIT PRICE TIERS</h1>
-            {priceTiers.map(pt => (
-              <div key={pt.label} style={{ padding: 16, background: COLORS.light, borderRadius: 8, marginBottom: 12, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                <div>
-                  <div style={{ fontSize: 18, fontWeight: 700, color: COLORS.text }}>{pt.label}</div>
-                  <div style={{ fontSize: 13, color: COLORS.gray }}>RM{pt.min} – {pt.max === Infinity ? "∞" : "RM" + pt.max}</div>
-                </div>
-                <div style={{ display: "flex", gap: 8 }}>
-                  <button onClick={() => editPriceTier(pt.label)} style={{ padding: "8px 16px", background: COLORS.purple, color: COLORS.white, border: "none", borderRadius: 6, cursor: "pointer", fontWeight: 600, fontSize: 12 }}>EDIT</button>
-                  <button onClick={() => deletePriceTier(pt.label)} style={{ padding: "8px 16px", background: "#ff5555", color: COLORS.white, border: "none", borderRadius: 6, cursor: "pointer", fontWeight: 600, fontSize: 12 }}>DELETE</button>
-                </div>
-              </div>
-            ))}
-          </div>
+        <div style={{ maxWidth: 600, margin: "0 auto", background: COLORS.white, padding: 40, borderRadius: 12, border: `2px solid ${COLORS.purple}` }}>
+          <EditPriceTiers priceTiers={priceTiers} setPriceTiers={setPriceTiers} onBack={() => setAdminPanel(null)} />
         </div>
       </div>
     );
@@ -773,21 +694,8 @@ export default function App() {
   if (userMode === "adminPanel" && adminPanel === "categories") {
     return (
       <div style={{ fontFamily: "'Inter', system-ui, sans-serif", background: COLORS.light, minHeight: "100vh", padding: "40px 20px" }}>
-        <div style={{ maxWidth: 600, margin: "0 auto" }}>
-          <button onClick={() => setAdminPanel(null)} style={{ marginBottom: 20, padding: "10px 20px", background: COLORS.darkBlue, color: COLORS.white, border: "none", borderRadius: 6, cursor: "pointer", fontSize: 14, fontWeight: 600 }}>← Back</button>
-          <div style={{ background: COLORS.white, padding: 40, borderRadius: 12, border: `2px solid ${COLORS.primary}` }}>
-            <h1 style={{ fontSize: 28, fontWeight: 700, marginBottom: 30, color: COLORS.darkBlue }}>📂 EDIT CATEGORIES</h1>
-            <button onClick={addCategory} style={{ width: "100%", marginBottom: 20, padding: "12px 20px", background: COLORS.primary, color: COLORS.darkBlue, border: "none", borderRadius: 8, cursor: "pointer", fontSize: 13, fontWeight: 600 }}>+ ADD CATEGORY</button>
-            {categories.map(cat => (
-              <div key={cat} style={{ padding: 16, background: COLORS.light, borderRadius: 8, marginBottom: 12, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                <div style={{ fontSize: 18, fontWeight: 700, color: COLORS.text }}>{cat}</div>
-                <div style={{ display: "flex", gap: 8 }}>
-                  <button onClick={() => editCategory(cat)} style={{ padding: "8px 16px", background: COLORS.primary, color: COLORS.darkBlue, border: "none", borderRadius: 6, cursor: "pointer", fontWeight: 600, fontSize: 12 }}>EDIT</button>
-                  <button onClick={() => deleteCategory(cat)} style={{ padding: "8px 16px", background: "#ff5555", color: COLORS.white, border: "none", borderRadius: 6, cursor: "pointer", fontWeight: 600, fontSize: 12 }}>DELETE</button>
-                </div>
-              </div>
-            ))}
-          </div>
+        <div style={{ maxWidth: 600, margin: "0 auto", background: COLORS.white, padding: 40, borderRadius: 12, border: `2px solid ${COLORS.primary}` }}>
+          <EditCategories categoryList={categoryList} setCategoryList={setCategoryList} onBack={() => setAdminPanel(null)} />
         </div>
       </div>
     );
@@ -797,97 +705,27 @@ export default function App() {
   if (userMode === "adminPanel" && adminPanel === "addProduct") {
     return (
       <div style={{ fontFamily: "'Inter', system-ui, sans-serif", background: COLORS.light, minHeight: "100vh", padding: "40px 20px" }}>
-        <div style={{ maxWidth: 800, margin: "0 auto" }}>
-          <button onClick={() => setAdminPanel(null)} style={{ marginBottom: 20, padding: "10px 20px", background: COLORS.darkBlue, color: COLORS.white, border: "none", borderRadius: 6, cursor: "pointer", fontSize: 14, fontWeight: 600 }}>← Back</button>
-          <div style={{ background: COLORS.white, padding: 40, borderRadius: 12, border: `2px solid ${COLORS.primary}` }}>
-            <h1 style={{ fontSize: 28, fontWeight: 700, marginBottom: 30, color: COLORS.darkBlue }}>{editingId ? "EDIT PRODUCT" : "ADD PRODUCT"}</h1>
-            <form onSubmit={handleAddOrEditProduct} style={{ display: "grid", gap: 20 }}>
-              <input type="text" value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} placeholder="Product name *" style={{ padding: "12px 16px", fontSize: 14, border: `1.5px solid ${COLORS.light}`, borderRadius: 8, fontFamily: "inherit" }} />
-              
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
-                <select value={formData.category} onChange={e => setFormData({...formData, category: e.target.value})} style={{ padding: "12px 16px", fontSize: 14, border: `1.5px solid ${COLORS.light}`, borderRadius: 8, fontFamily: "inherit" }}>
-                  <option value="">Select category *</option>
-                  {categories.map(cat => <option key={cat} value={cat}>{cat}</option>)}
-                </select>
-                <input type="number" value={formData.price} onChange={e => setFormData({...formData, price: e.target.value})} placeholder="Base Price (RM) *" style={{ padding: "12px 16px", fontSize: 14, border: `1.5px solid ${COLORS.light}`, borderRadius: 8, fontFamily: "inherit" }} />
-              </div>
-
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
-                <input type="text" value={formData.link} onChange={e => setFormData({...formData, link: e.target.value})} placeholder="Website link (optional)" style={{ padding: "12px 16px", fontSize: 14, border: `1.5px solid ${COLORS.light}`, borderRadius: 8, fontFamily: "inherit" }} />
-                <input type="text" value={formData.size} onChange={e => setFormData({...formData, size: e.target.value})} placeholder="Size (optional)" style={{ padding: "12px 16px", fontSize: 14, border: `1.5px solid ${COLORS.light}`, borderRadius: 8, fontFamily: "inherit" }} />
-              </div>
-
-              <input type="text" value={formData.material} onChange={e => setFormData({...formData, material: e.target.value})} placeholder="Material (e.g., Cotton, Polyester, Stainless Steel, PU Leather)" style={{ padding: "12px 16px", fontSize: 14, border: `1.5px solid ${COLORS.light}`, borderRadius: 8, fontFamily: "inherit" }} />
-
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
-                <select value={formData.leadTime} onChange={e => setFormData({...formData, leadTime: e.target.value})} style={{ padding: "12px 16px", fontSize: 14, border: `1.5px solid ${COLORS.light}`, borderRadius: 8, fontFamily: "inherit" }}>
-                  {leadTimes.map(lt => <option key={lt.id} value={lt.id}>{lt.label} ({lt.sub})</option>)}
-                </select>
-                <input type="number" value={formData.moq} onChange={e => setFormData({...formData, moq: e.target.value})} placeholder="MOQ *" style={{ padding: "12px 16px", fontSize: 14, border: `1.5px solid ${COLORS.light}`, borderRadius: 8, fontFamily: "inherit" }} />
-              </div>
-
-              <div>
-                <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: COLORS.gray, marginBottom: 8 }}>Image</label>
-                <div onDragEnter={handleDrag} onDragLeave={handleDrag} onDragOver={handleDrag} onDrop={handleDrop} style={{ border: dragActive ? `2px solid ${COLORS.primary}` : `2px dashed ${COLORS.light}`, borderRadius: 8, padding: "30px", textAlign: "center", background: dragActive ? `${COLORS.primary}10` : COLORS.light, cursor: "pointer" }}>
-                  <input type="file" accept="image/*" onChange={e => handleImageUpload(e.target.files?.[0])} style={{ display: "none" }} id="imageUploadInput" />
-                  <label htmlFor="imageUploadInput" style={{ cursor: "pointer", fontSize: 14 }}>Drag or click to upload</label>
-                </div>
-                {formData.image && (
-                  <div style={{ marginTop: 12, fontSize: 12, color: COLORS.gray }}>
-                    ✓ Image selected
-                  </div>
-                )}
-              </div>
-
-              <div>
-                <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: COLORS.gray, marginBottom: 10 }}>Printing Options *</label>
-                <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-                  {OPTIONS.printing.map(option => (
-                    <button key={option} type="button" onClick={() => togglePrinting(option)} style={{ padding: "8px 14px", borderRadius: 20, fontSize: 12, fontWeight: 500, cursor: "pointer", border: formData.printing.includes(option) ? `1.5px solid ${COLORS.primary}` : `1px solid ${COLORS.light}`, background: formData.printing.includes(option) ? COLORS.primary : COLORS.white, color: formData.printing.includes(option) ? COLORS.darkBlue : COLORS.gray }}>{option}</button>
-                  ))}
-                </div>
-              </div>
-
-              <div style={{ padding: 20, background: COLORS.light, borderRadius: 8 }}>
-                <h3 style={{ fontSize: 14, fontWeight: 700, color: COLORS.text, marginBottom: 16 }}>💰 Pricing Tiers (Optional)</h3>
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 12 }}>
-                  <input type="number" value={newTierMoq} onChange={e => setNewTierMoq(e.target.value)} placeholder="MOQ" style={{ padding: "10px", fontSize: 13, border: `1px solid ${COLORS.light}`, borderRadius: 6, fontFamily: "inherit" }} />
-                  <input type="number" value={newTierPrice} onChange={e => setNewTierPrice(e.target.value)} placeholder="Price (RM)" style={{ padding: "10px", fontSize: 13, border: `1px solid ${COLORS.light}`, borderRadius: 6, fontFamily: "inherit" }} />
-                </div>
-                <button type="button" onClick={addPricingTier} style={{ width: "100%", padding: "10px", background: COLORS.primary, color: COLORS.darkBlue, border: "none", borderRadius: 6, fontSize: 13, fontWeight: 600, cursor: "pointer", marginBottom: 16 }}>+ Add Tier</button>
-
-                {formData.pricingTiers.length > 0 && (
-                  <div style={{ background: COLORS.white, borderRadius: 6, overflow: "hidden" }}>
-                    <table style={{ width: "100%", borderCollapse: "collapse" }}>
-                      <thead>
-                        <tr style={{ background: COLORS.light }}>
-                          <th style={{ padding: "10px", textAlign: "left", fontSize: 12, fontWeight: 600, borderBottom: `1px solid ${COLORS.light}` }}>MOQ</th>
-                          <th style={{ padding: "10px", textAlign: "left", fontSize: 12, fontWeight: 600, borderBottom: `1px solid ${COLORS.light}` }}>Price (RM)</th>
-                          <th style={{ padding: "10px", textAlign: "left", fontSize: 12, fontWeight: 600, borderBottom: `1px solid ${COLORS.light}` }}>Action</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {formData.pricingTiers.map((tier, idx) => (
-                          <tr key={idx} style={{ borderBottom: `1px solid ${COLORS.light}` }}>
-                            <td style={{ padding: "10px", fontSize: 13 }}>{tier.moq}</td>
-                            <td style={{ padding: "10px", fontSize: 13 }}>RM{parseFloat(tier.price).toFixed(2)}</td>
-                            <td style={{ padding: "10px" }}>
-                              <button type="button" onClick={() => removePricingTier(idx)} style={{ padding: "4px 8px", background: "#ff5555", color: COLORS.white, border: "none", borderRadius: 4, fontSize: 11, cursor: "pointer" }}>Remove</button>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                )}
-              </div>
-
-              <div style={{ display: "flex", gap: 12 }}>
-                <button type="submit" style={{ flex: 1, padding: "14px 24px", background: COLORS.primary, color: COLORS.darkBlue, border: "none", borderRadius: 8, fontSize: 14, fontWeight: 600, cursor: "pointer" }}>{editingId ? "UPDATE" : "ADD"}</button>
-                {editingId && <button type="button" onClick={() => { setEditingId(null); resetForm(); }} style={{ flex: 1, padding: "14px 24px", background: COLORS.gray, color: COLORS.white, border: "none", borderRadius: 8, fontSize: 14, fontWeight: 600, cursor: "pointer" }}>CANCEL</button>}
-              </div>
-            </form>
-          </div>
+        <div style={{ maxWidth: 800, margin: "0 auto", background: COLORS.white, padding: 40, borderRadius: 12, border: `2px solid ${COLORS.primary}` }}>
+          <AddProduct
+            formData={formData}
+            setFormData={setFormData}
+            editingId={editingId}
+            categories={categoryList}
+            leadTimes={leadTimes}
+            priceTiers={priceTiers}
+            newTierMoq={newTierMoq}
+            setNewTierMoq={setNewTierMoq}
+            newTierPrice={newTierPrice}
+            setNewTierPrice={setNewTierPrice}
+            dragActive={dragActive}
+            handleDrag={handleDrag}
+            handleDrop={handleDrop}
+            handleImageUpload={handleImageUpload}
+            onSubmit={handleAddOrEditProduct}
+            onBack={() => setAdminPanel(null)}
+            onAddTier={addPricingTier}
+            onRemoveTier={removePricingTier}
+          />
         </div>
       </div>
     );
