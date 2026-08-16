@@ -1,6 +1,7 @@
 import { COLORS, OPTIONS } from "../constants";
 
-export default function ProductCard({ product, onSelect }) {
+export default function ProductCard({ product, onSelect, leadTimes }) {
+  const leadLabel = leadTimes?.find(lt => lt.id === product.leadTime)?.sub || product.leadLabel || "Unknown";
   const lc = OPTIONS.leadColors[product.leadTime] || { bg: COLORS.light, text: COLORS.gray, badge: COLORS.gray };
 
   return (
@@ -18,7 +19,7 @@ export default function ProductCard({ product, onSelect }) {
       {product.material && <div style={{ fontSize: 12, color: COLORS.gray, marginBottom: 6 }}>Material: {product.material}</div>}
       <div style={{ display: "flex", gap: 10, marginBottom: 12 }}>
         <span style={{ fontSize: 11, fontWeight: 600, color: lc.text, background: lc.bg, padding: "4px 10px", borderRadius: 20, border: `1px solid ${lc.badge}` }}>
-          {product.leadLabel}
+          {leadLabel}
         </span>
       </div>
       <div style={{ fontSize: 28, fontWeight: 800, color: COLORS.primary }}>RM{parseFloat(product.price).toFixed(2)}</div>
