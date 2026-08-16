@@ -619,7 +619,7 @@ export default function App() {
           <h1 style={{ fontSize: 36, fontWeight: 700, marginBottom: 40, color: COLORS.darkBlue, textAlign: "center" }}>⚙️ ADMIN PANEL</h1>
           <button onClick={handleLogout} style={{ width: "100%", marginBottom: 20, padding: "12px 20px", background: COLORS.gray, color: COLORS.white, border: "none", borderRadius: 8, cursor: "pointer", fontSize: 14, fontWeight: 600 }}>🔒 Logout</button>
           
-          <AdminMenu onSelectAction={setAdminPanel} />
+          <AdminMenu onSelectAction={setAdminPanel} onExport={exportToCSV} />
         </div>
       </div>
     );
